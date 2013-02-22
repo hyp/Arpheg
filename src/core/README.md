@@ -1,0 +1,1 @@
+Core package provides some common foundation code.
