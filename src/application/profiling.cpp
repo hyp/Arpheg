@@ -39,8 +39,8 @@ void Timer::start(){
 }
 void Timer::end(){
 	if(services::application()->frameID() < 100) return;//Skip some initial frames.
-	if(sample >=kNumSamples){
-		if(sample == kNumSamples){
+	if(sample >=sampleCount){
+		if(sample == sampleCount){
 			processResults();
 			sample++;
 		}
@@ -49,6 +49,12 @@ void Timer::end(){
 	}
 	time[sample] = TimeType(core::highResolutionClock::now() - clock);
 	sample++;
+}
+float Timer::currentTime() {
+	if(sample >= kNumSamples){
+		return time[0];
+	}
+	return time[sample];
 }
 
 } }
