@@ -1,20 +1,20 @@
-
 #include "../../core/memory.h"
 #include "../../core/assert.h"
+#include "../../core/bufferStringStream.h"
+#include "../../services.h"
+#include "../../application/logging.h"
 #include "softwareOcclusion.h"
+
+#ifdef ARPHEG_ARCH_X86
+	#include "helperSSE.h"
+#endif
 
 namespace rendering {
 namespace softwareOcclusion {
 
-struct ScreenSpaceVertex {
-	vec2i pos;
-	float z;
-	float w;
-};
 struct ScreenSpaceQuad {
-	ScreenSpaceVertex v[4];
+	vec4f v[4];
 };
-
 //A rasterizable triangle.
 struct XY {
 	//struct {
@@ -28,14 +28,19 @@ struct BinnedTriangle {
 };
 
 enum {
-	kMaxQuadPerTile = 256,
-	kMaxTrianglesPerTile = 512,
+	kMaxTrianglesPerTile = 1024*2,
+	
+	kModeDepthFlat = 0,   //Depth buffer pixels are stored in rows 
+	kModeDepthPackedTiles,//Depth buffer pixels are stored in rows for each tile
+	kModeDepthPackedQuads,//Depth buffer pixels are stored in 2x2 quads ((0,0),(1,0),(0,1),(1,1))
 };
 
 DepthBuffer::DepthBuffer(vec2i size){
+	mode_ = kModeDepthPackedQuads;
 	auto allocator= core::memory::globalAllocator();
 	size_ = size;
 	tileCount_ = vec2i(4,4);
+
 	if(size.y%tileCount_.y){
 		tileCount_.y = 5;
 		if(size.y%tileCount_.y) tileCount_.y = 6;
@@ -46,19 +51,79 @@ DepthBuffer::DepthBuffer(vec2i size){
 	}
 	tileSize_ = vec2i(size.x/tileCount_.x,size.y/tileCount_.y);
 	assertRelease((size.x%tileCount_.x == 0) && (size.y%tileCount_.y == 0));
+	assertRelease(size.x%4 == 0);//Verify that each row will be aligned by 16
+	assertRelease(size.x%2 == 0 && size.y%2 == 0);
+
 
 	center_ = vec2i(size.x/2,size.y/2);
 	data_ = (float*)allocator->allocate(size_.x*size_.y*sizeof(float),alignof(vec4f));
 	texels_ = nullptr;
 	tileTriangleCount_ = (uint32*)allocator->allocate(tileCount_.x*tileCount_.y*sizeof(uint32),alignof(vec4f));
-	tileQuads_ = (ScreenSpaceQuad*)allocator->allocate(tileCount_.x*tileCount_.y*kMaxQuadPerTile*sizeof(ScreenSpaceQuad),alignof(vec4f));
 	triangleBins_ = (BinnedTriangle*)allocator->allocate(tileCount_.x*tileCount_.y*kMaxTrianglesPerTile*sizeof(BinnedTriangle),alignof(vec4f));
 
 	// Half because the range is [-1,1] -> [0,2]
 	clipSpaceToScreenSpaceMultiplier = vec4f(float(center_.x),float(center_.y),1.0f,1.0f);
+
+	using namespace core::bufferStringStream;
+	Formatter fmt;
+	printf(fmt.allocator,"Created depth buffer for software occlusion testing\n  Width: %d Height: %d\n  Tile width: %d Tile Height: %d Tile count: %d",size_.x,size_.y,tileSize_.x,tileSize_.y,tileCount_.x*tileCount_.y);
+	services::logging()->information(asCString(fmt.allocator));
 }
 DepthBuffer::~DepthBuffer() {
-	core::memory::globalAllocator()->deallocate(data_);
+	auto allocator_ = core::memory::globalAllocator();
+	allocator_->deallocate(data_);
+	allocator_->deallocate(triangleBins_);
+	allocator_->deallocate(tileTriangleCount_);
+	if(texels_){
+		allocator_->deallocate(texels_);
+	}
+}
+void* DepthBuffer::getTexels(texture::Descriptor2D& descriptor) {
+	descriptor.width = size_.x;
+	descriptor.height = size_.y;
+	descriptor.format = texture::FLOAT_R_32;
+	if(!texels_){
+		texels_ = (float*)core::memory::globalAllocator()->allocate(size_.x*size_.y*sizeof(float),alignof(vec4f));
+	}
+
+	if(mode_ == kModeDepthFlat){
+		memcpy(texels_,data_,size_.x*size_.y*sizeof(float));
+	} else if(mode_ == kModeDepthPackedTiles){
+		//Copy row by row
+		size_t pixelsPerTile = tileSize_.x*tileSize_.y;
+		float* dest = texels_;
+		for(int32 y = 0;y<size_.y;++y){
+			int32 tileY = y/tileSize_.y;
+			int32 localYOffset = (y - tileY*tileSize_.y)*tileSize_.x;
+		
+			for(int32 tileX = 0;tileX < tileCount_.x;++tileX){
+				float* tilePixels    = data_ + tileX*pixelsPerTile + tileY*pixelsPerTile*tileCount_.x;
+				float* tileRowPixels = tilePixels + localYOffset;
+				memcpy(dest,tileRowPixels,tileSize_.x*sizeof(float));
+				dest+=tileSize_.x;
+			}
+		}
+	} else if(mode_ == kModeDepthPackedQuads){
+		//memcpy(texels_,data_,size_.x*size_.y*sizeof(float));
+		//return texels_;
+		//Copy row by row
+		float* dest = texels_;
+		float* source = data_;
+		for(int32 y = 0;y<size_.y;y+=2){
+			auto src = source;
+			for(int32 x = 0;x<size_.x;x+=2,src+=4){
+				dest[x] = src[0];
+				dest[x+1] = src[1];
+				dest[x+size_.x] = src[2];
+				dest[x+size_.x+1] = src[3];
+			}
+			//Goto the next two rows
+			dest+=size_.x*2;
+			source+=size_.x*2;
+		}
+	}
+
+	return texels_;
 }
 
 #ifdef ARPHEG_ARCH_X86
@@ -90,7 +155,7 @@ void DepthBuffer::clear(float far) {
 	clearDepth(data_,size_.x*size_.y,far);
 	//Reset tiles.
 	for(uint32 i = 0;i<tileCount_.x*tileCount_.y;++i) tileTriangleCount_[i] = 0;
-	assertRelease(sizeof(ScreenSpaceVertex) == sizeof(vec4f));
+	triangleBufferOffset= 0;
 }
 
 const float maxFarDistance = 1000000.0f;
@@ -157,87 +222,6 @@ bool rayAABBIntersect(vec3f min,vec3f max,vec3f rayOrig,vec3f rayDir,float& dist
 
 	dist = tmin;
 	return true;
-}
-
-inline int32 orient2d(const vec2i a, const vec2i b, const vec2i c){
-    return (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
-}
-void DepthBuffer::drawTriangle(vec2i v0,vec2i v1,vec2i v2,vec2i tilePos) {
-	int32 minx = std::min(v0.x,std::min(v1.x,v2.x));
-	int32 miny = std::min(v0.y,std::min(v1.y,v2.y));
-	int32 maxx = std::max(v0.x,std::max(v1.x,v2.x));
-	int32 maxy = std::max(v0.y,std::max(v1.y,v2.y));
-
-	minx = std::max(minx,tilePos.x); miny = std::max(miny,tilePos.y);
-	maxx = std::min(maxx,tilePos.x+tileSize_.x-1); maxy = std::min(maxy,tilePos.y+tileSize_.y-1);
-
-	int32 a01 = v0.y - v1.y; int32 b01 = v1.x - v0.x;
-	int32 a12 = v1.y - v2.y; int32 b12 = v2.x - v1.x;
-	int32 a20 = v2.y - v0.y; int32 b20 = v0.x - v2.x;
-
-	vec2i p(minx,miny);
-
-	auto w0_row = orient2d(v1,v2,p);
-	auto w1_row = orient2d(v2,v0,p);
-	auto w2_row = orient2d(v0,v1,p);
-
-	for(p.y = miny;p.y<=maxy;++p.y){
-		auto w0 = w0_row;
-		auto w1 = w1_row;
-		auto w2 = w2_row;
-
-		for(p.x = minx;p.x<=maxx;++p.x){
-			if((w0|w1|w2) >= 0){
-				data_[p.x+p.y*size_.x] = 0.5f;
-			}
-
-			w0+=a12;
-			w1+=a20;
-			w2+=a01;
-		}
-		w0_row += b12;
-		w1_row += b20;
-		w2_row += b01;
-	}
-}
-void* DepthBuffer::getTexels(texture::Descriptor2D& descriptor) {
-	descriptor.width = size_.x;
-	descriptor.height = size_.y;
-	descriptor.format = texture::FLOAT_R_32;
-	if(!texels_){
-		texels_ = (float*)core::memory::globalAllocator()->allocate(size_.x*size_.y*sizeof(float),alignof(vec4f));
-	}
-
-	//Copy row by row
-	size_t pixelsPerTile = tileSize_.x*tileSize_.y;
-	float* dest = texels_;
-	for(int32 y = 0;y<size_.y;++y){
-		int32 tileY = y/tileSize_.y;
-		int32 localYOffset = (y - tileY*tileSize_.y)*tileSize_.x;
-		
-		for(int32 tileX = 0;tileX < tileCount_.x;++tileX){
-			float* tilePixels    = data_ + tileX*pixelsPerTile + tileY*pixelsPerTile*tileCount_.x;
-			float* tileRowPixels = tilePixels + localYOffset;
-			memcpy(dest,tileRowPixels,tileSize_.x*sizeof(float));
-			dest+=tileSize_.x;
-		}
-	}
-
-	
-	/*for(int32 y = 0;y<tileCount_.y;++y){
-	for(int32 x = 0;x<tileCount_.x;++x){
-		float* tilePixels= data_ + x*pixelsPerTile + y*pixelsPerTile;
-		//copy rows
-		for(int32 yy = 0;yy < tileSize_.y;++yy){
-			float* rowPixels = tilePixels + yy*tileSize_.x;
-			float* dest = texels_ + x*tileSize_.x + (y*tileSize_.y+yy)*size_.x;
-			memcpy(dest,rowPixels,tileSize_.x*sizeof(float));
-		}
-	} }*/
-	//float* tilePixels = data_ + tilePos.x*tileSize_.y + tilePos.y*tileSize_.x;
-
-	//memcpy(texels_,data_,size_.x*size_.y*sizeof(float));
-	return texels_;
 }
 
 #define RIGHT	0
@@ -407,7 +391,7 @@ static inline void transformBoxVertices(vec4f vertices[8],const mat44f& matrix){
 static inline void boxVerticesToScreenVertices(vec4f vertices[8],const vec4f& screenCenterMul,vec2i screenCenter){
 #ifdef ARPHEG_ARCH_X86
 	__m128 screenSpaceMul = _mm_load_ps((float*)&screenCenterMul.x);
-	__m128i screenCenterOffset = _mm_setr_epi32(screenCenter.x,screenCenter.y,0,0);
+	__m128 screenCenterOffset = _mm_setr_ps(float(screenCenter.x),float(screenCenter.y),0,0);
 	//__m128 nearClip = _mm_set_ps1(-1.0f);
 	for(uint32 i = 0;i<8;++i){
 		__m128 hv = _mm_load_ps((float*)(vertices + i));
@@ -415,14 +399,15 @@ static inline void boxVerticesToScreenVertices(vec4f vertices[8],const vec4f& sc
 		__m128 w  = _mm_shuffle_ps(hv,hv,_MM_SHUFFLE(3,3,3,3)); //get the w component
 		hv = _mm_div_ps(hv,w); //Project XYZW to clip space (divide by w)
 		//__m128 z  = _mm_shuffle_ps(hv,hv,_MM_SHUFFLE(2,2,2,2));
-		hv = _mm_mul_ps(hv,screenSpaceMul); //XY to screen space
+		hv = _mm_mul_ps(hv,screenSpaceMul); //XY to screen space    [-width/2,-height/2 -> width/2,height/2]
+		hv = _mm_add_ps(hv,screenCenterOffset);//XY to screen space [0,0 -> width,height]
 		//__m128 mNoNearClip = _mm_cmpge_ps(z, nearClip );
-		w  = _mm_shuffle_ps(w,hv,_MM_SHUFFLE(2,2,0,0));//w,w,z,z
+		//w  = _mm_shuffle_ps(w,hv,_MM_SHUFFLE(2,2,0,0));//w,w,z,z
 		//Truncate conversion to screen space
-		__m128i screenSpace = _mm_cvttps_epi32(hv);
-		screenSpace = _mm_add_epi32(screenSpace,screenCenterOffset);//XY to screen space
-		hv = _mm_castsi128_ps(screenSpace);
-		hv = _mm_shuffle_ps(hv,w,_MM_SHUFFLE(0,2,1,0));//x,y,z,w
+		//__m128i screenSpace = _mm_cvttps_epi32(hv);
+		//screenSpace = _mm_add_epi32(screenSpace,screenCenterOffset);//XY to screen space
+		///hv = _mm_castsi128_ps(screenSpace);
+		//hv = _mm_shuffle_ps(hv,w,_MM_SHUFFLE(0,2,1,0));//x,y,z,w
 
 		//Set to all-0 if near-clipped
 		//hv = _mm_and_ps(hv, mNoNearClip);
@@ -430,6 +415,7 @@ static inline void boxVerticesToScreenVertices(vec4f vertices[8],const vec4f& sc
 		_mm_store_ps((float*)(vertices + i),hv);
 	}
 #else
+	//TODO
 	ScreenSpaceVertex* screenVerts= (ScreenSpaceVertex*)vertices;
 	for(uint32 i =0;i<8;++i){
 		vertices[i] = vertices[i] * (1.0f/vertices[i].w) ;
@@ -438,7 +424,7 @@ static inline void boxVerticesToScreenVertices(vec4f vertices[8],const vec4f& sc
 	}
 #endif
 }
-static inline uint32 extractBoxQuads(ScreenSpaceQuad faces[6],ScreenSpaceVertex vertices[8],uint32 aabbFrontFaceMask){
+static inline uint32 extractBoxQuads(ScreenSpaceQuad faces[6],vec4f vertices[8],uint32 aabbFrontFaceMask){
 	static uint32 indices[6] = {
 		makeBoxIndex(0,1,2,3),makeBoxIndex(4,5,6,7), //XY
 		makeBoxIndex(1,0,4,5),makeBoxIndex(2,3,7,6), //XZ
@@ -458,27 +444,124 @@ static inline uint32 extractBoxQuads(ScreenSpaceQuad faces[6],ScreenSpaceVertex 
 	return faceCount;
 }
 
+//Binning
+static void gather4Simd(VecF32Soa dest[3],VecF32 vertices[12]){
+	for(uint32 i = 0;i<3;++i){
+		__m128 v0 = vertices[i].simd; //x0, y0, z0, w0
+		__m128 v1 = vertices[3+i].simd;//x1, y1, z1, w1
+		__m128 v2 = vertices[6+i].simd;//x2, y2, z2, w2
+		__m128 v3 = vertices[9+i].simd;//x3, y3, z3, w3
+		_MM_TRANSPOSE4_PS(v0, v1, v2, v3);
+		dest[i].x = VecF32(v0);
+		dest[i].y = VecF32(v1);
+		dest[i].z = VecF32(v2);
+		dest[i].w = VecF32(v3);
+	}
+}
+void DepthBuffer::binTriangles4Simd(vec4f vertices[12],uint32 count) {
+	enum { kNumLanes = 4 };
 
-void DepthBuffer::binTriangle(ScreenSpaceVertex& v0,ScreenSpaceVertex& v1,ScreenSpaceVertex& v2) {
+	VecF32Soa transformedPos[3];
+	gather4Simd(transformedPos,(VecF32*)vertices);
+
+	VecS32 vertexX[3],vertexY[3];
+	VecF32 vertexZ[3];
+
+	for(int i = 0;i<3;i++){
+		//Convert the floating point coordinates to integer screen space coordinates.
+		//NB: truncate
+		vertexX[i] = ftoi(transformedPos[i].x);
+		vertexY[i] = ftoi(transformedPos[i].y);
+
+		vertexZ[i] = transformedPos[i].z;
+	}
+
+	//Compute triangle area.
+	VecS32 area = (vertexX[1] - vertexX[0]) * (vertexY[2] - vertexY[0]) - (vertexX[0] - vertexX[2]) * (vertexY[0] - vertexY[1]);
+	VecF32 oneOverArea = VecF32(1.0f)/itof(area);
+
+	//Setup Z for interpolation
+	vertexZ[1] = (vertexZ[1] - vertexZ[0]) * oneOverArea;
+	vertexZ[2] = (vertexZ[2] - vertexZ[0]) * oneOverArea;
+
+	//Find bounding box for the screen space triangle
+	VecS32 zero = VecS32(0);
+	VecS32 minX = vmax( vmin(vmin(vertexX[0],vertexX[1]),vertexX[2]), zero);
+	VecS32 maxX = vmin( vmax(vmax(vertexX[0],vertexX[1]),vertexX[2]), VecS32(size_.x-1) );
+	VecS32 minY = vmax( vmin(vmin(vertexY[0],vertexY[1]),vertexY[2]), zero);
+	VecS32 maxY = vmin( vmax(vmax(vertexY[0],vertexY[1]),vertexY[2]), VecS32(size_.y-1) );
+
+	uint32 numLanes = std::min(count,uint32(kNumLanes));
+	for(uint32 i =0;i<numLanes;++i){
+		//Skip triangle if the area is zero
+		if(area.lane[i] <= 0) continue;
+
+		//Convert bounding box in terms of pixels to bounding box in terms of tiles.
+		int32 tileMinX = minX.lane[i]/tileSize_.x;//std::max(minX.lane[i]/tileSize_.x,0);
+		int32 tileMaxX = maxX.lane[i]/tileSize_.x;//std::min(maxX.lane[i]/tileSize_.x,tileCount_.x);
+		int32 tileMinY = minY.lane[i]/tileSize_.y;//std::max(minY.lane[i]/tileSize_.y,0);
+		int32 tileMaxY = maxY.lane[i]/tileSize_.y;//std::min(maxY.lane[i]/tileSize_.y,tileCount_.y);
+
+		for(;tileMinY <= tileMaxY;tileMinY++){
+			auto tileIndex = tileMinX + tileMinY*tileCount_.x;
+		for(auto x = tileMinX; x<= tileMaxX; x++,tileIndex++){
+			auto count = tileTriangleCount_[tileIndex];
+			if(count >= kMaxTrianglesPerTile) continue;
+			tileTriangleCount_[tileIndex]++;
+
+			BinnedTriangle& triangle =*( triangleBins_ + count + x*kMaxTrianglesPerTile + tileMinY*tileCount_.x*kMaxTrianglesPerTile);
+			triangle.v[0].x = vertexX[0].lane[i];
+			triangle.v[0].y = vertexY[0].lane[i];
+			triangle.v[1].x = vertexX[1].lane[i];
+			triangle.v[1].y = vertexY[1].lane[i];
+			triangle.v[2].x = vertexX[2].lane[i];
+			triangle.v[2].y = vertexY[2].lane[i];
+			triangle.z[0] = vertexZ[0].lane[i];
+			triangle.z[1] = vertexZ[1].lane[i];
+			triangle.z[2] = vertexZ[2].lane[i];
+		} }
+	}
+}
+void DepthBuffer::binTriangle(const vec4f& v0f,const vec4f& v1f,const vec4f& v2f) {
+#ifdef ARPHEG_ARCH_X86
+	if(triangleBufferOffset>=4){
+		binTriangles4Simd(triangleBufferStorage,4);
+		triangleBufferOffset = 0;
+	}
+	auto off = triangleBufferOffset*3;
+	triangleBufferStorage[off] = v0f;
+	triangleBufferStorage[off+1] = v1f;
+	triangleBufferStorage[off+2] = v2f;
+	triangleBufferOffset++;
+#else
+	vec2i v0;vec2i v1;vec2i v2;
+	float z[3];
+
+	//NB: truncate
+	v0 = vec2i( int32(v0f.x),int32(v0f.y) );
+	v1 = vec2i( int32(v1f.x),int32(v1f.y) );
+	v2 = vec2i( int32(v2f.x),int32(v2f.y) );
+
 	vec2i min,max;
-	min.x = std::max(0,std::min(std::min(v0.pos.x,v1.pos.x),v2.pos.x));
-	min.y = std::max(0,std::min(std::min(v0.pos.y,v1.pos.y),v2.pos.y));
-	max.x = std::min(size_.x-1,std::max(std::max(v0.pos.x,v1.pos.x),v2.pos.x));
-	max.y = std::min(size_.y-1,std::max(std::max(v0.pos.y,v1.pos.y),v2.pos.y));
+	min.x = std::max(0,std::min(std::min(v0.x,v1.x),v2.x));
+	min.y = std::max(0,std::min(std::min(v0.y,v1.y),v2.y));
+	max.x = std::min(size_.x-1,std::max(std::max(v0.x,v1.x),v2.x));
+	max.y = std::min(size_.y-1,std::max(std::max(v0.y,v1.y),v2.y));
 	//Convert to tile coords
 	min.x = min.x/tileSize_.x;//std::min(0,min.x / tileSize_.x);
 	min.y = min.y/tileSize_.y;//std::min(0,min.y / tileSize_.y);
 	max.x = max.x/tileSize_.x;//std::max(tileCount_.x-1,max.x / tileSize_.x);
 	max.y = max.y/tileSize_.y;//std::max(tileCount_.y-1,max.y / tileSize_.y);
 	
-
-	auto area = (v1.pos.x - v0.pos.x) * (v2.pos.y - v0.pos.y) - (v0.pos.x - v2.pos.x) * (v0.pos.y - v1.pos.y);
-	if(area <= 0.0f) return;//skip if the area is zero
-	/*if(v0.w == 0.0f || v1.w == 0.0f || v2.w == 0.0f){
-		area = 1.0f;
-		return;
-	}*/
+	//Calculate area
+	auto area = (v1.x - v0.x) * (v2.y - v0.y) - (v0.x - v2.x) * (v0.y - v1.y);
+	if(area <= 0) return;//skip if the area is zero
 	float oneOverArea = 1.0f/float(area);
+
+	//Setup Z
+	z[0] = v0f.z;
+	z[1] = (v1f.z-z[0])*oneOverArea;
+	z[2] = (v2f.z-z[0])*oneOverArea;
 
 	for(int32 y = min.y;y<=max.y;++y){
 	for(int32 x = min.x;x<=max.x;++x){
@@ -488,92 +571,72 @@ void DepthBuffer::binTriangle(ScreenSpaceVertex& v0,ScreenSpaceVertex& v1,Screen
 		tileTriangleCount_[tileIndex]++;
 		BinnedTriangle& triangle =*( triangleBins_ + count + x*kMaxTrianglesPerTile + y*tileCount_.x*kMaxTrianglesPerTile);
 
-		triangle.v[0].x = v0.pos.x;
-		triangle.v[0].y = v0.pos.y;
-		triangle.v[1].x = v1.pos.x;
-		triangle.v[1].y = v1.pos.y;
-		triangle.v[2].x = v2.pos.x;
-		triangle.v[2].y = v2.pos.y;
-		triangle.z[0] = v0.z;
-		triangle.z[1] = (v1.z-v0.z)*oneOverArea;
-		triangle.z[2] = (v2.z-v0.z)*oneOverArea;
+		triangle.v[0].x = v0.x;
+		triangle.v[0].y = v0.y;
+		triangle.v[1].x = v1.x;
+		triangle.v[1].y = v1.y;
+		triangle.v[2].x = v2.x;
+		triangle.v[2].y = v2.y;
+		triangle.z[0] = z[0];
+		triangle.z[1] = z[1];
+		triangle.z[2] = z[2];
 	} }
+#endif
 }
 void DepthBuffer::binQuad(ScreenSpaceQuad& quad) {
 	//Find the quad bounds
+#ifdef ARPHEG_ARCH_X86
+	if(triangleBufferOffset>=3){
+		binTriangles4Simd(triangleBufferStorage,4);
+		triangleBufferOffset = 0;
+	}
+	auto off = triangleBufferOffset*3;
+	triangleBufferStorage[off] = quad.v[0];
+	triangleBufferStorage[off+1] = quad.v[1];
+	triangleBufferStorage[off+2] = quad.v[2];
+	triangleBufferStorage[off+3] = quad.v[2];
+	triangleBufferStorage[off+4] = quad.v[3];
+	triangleBufferStorage[off+5] = quad.v[0];
+	triangleBufferOffset+=2;
+#else
 	binTriangle(quad.v[0],quad.v[1],quad.v[2]);
 	binTriangle(quad.v[2],quad.v[3],quad.v[0]);
-	return;
-	vec2i min = quad.v[0].pos;vec2i max = quad.v[0].pos;
-	for(uint32 i = 1;i<4;++i){
-		auto v = quad.v[i].pos;
-		min.x = std::min(min.x,v.x);
-		min.y = std::min(min.y,v.y);
-		max.x = std::max(max.x,v.x);
-		max.y = std::max(max.y,v.y);
-	}
-	min.x = std::min(0,min.x / tileSize_.x);
-	min.y = std::min(0,min.y / tileSize_.y);
-	max.x = std::max(tileCount_.x-1,max.x / tileSize_.x);
-	max.y = std::max(tileCount_.y-1,max.y / tileSize_.y);
-
-	//Area of a triangle(same for two).
-	auto area = (quad.v[1].pos.x - quad.v[0].pos.x) * (quad.v[2].pos.y - quad.v[0].pos.y) - (quad.v[0].pos.x - quad.v[2].pos.x) * (quad.v[0].pos.y - quad.v[1].pos.y);
-	float oneOverArea1 = 1.0f/float(area);
-	area = (quad.v[3].pos.x - quad.v[2].pos.x) * (quad.v[0].pos.y - quad.v[2].pos.y) - (quad.v[2].pos.x - quad.v[0].pos.x) * (quad.v[2].pos.y - quad.v[3].pos.y);
-	float oneOverArea2 = oneOverArea1;// 1.0f/fabs(float(area));
-
-	for(uint32 y = min.y;y<=max.y;++y){
-	for(uint32 x = min.x;x<=max.x;++x){
-		auto tileIndex = x + y*tileCount_.x;
-		auto count = tileTriangleCount_[tileIndex];
-		if((count+2) > kMaxTrianglesPerTile) continue;
-		tileTriangleCount_[tileIndex]+=2;
-		BinnedTriangle triangle;
-		//first triangle
-		triangle.v[0].x = quad.v[0].pos.x;
-		triangle.v[0].y = quad.v[0].pos.y;
-		triangle.v[1].x = quad.v[1].pos.x;
-		triangle.v[1].y = quad.v[1].pos.y;
-		triangle.v[2].x = quad.v[2].pos.x;
-		triangle.v[2].y = quad.v[2].pos.y;
-		triangle.z[0] = quad.v[0].z;
-		triangle.z[1] = (quad.v[1].z-triangle.z[0])*oneOverArea1;
-		triangle.z[2] = (quad.v[2].z-triangle.z[0])*oneOverArea1;
-		
-
-		auto triIndex = count + x*kMaxTrianglesPerTile + y*tileCount_.x*kMaxTrianglesPerTile;
-		triangleBins_[triIndex] = triangle;
-		//Second triangle
-		triangle.v[0] = triangle.v[2];
-		triangle.v[1].x = quad.v[3].pos.x;
-		triangle.v[1].y = quad.v[3].pos.y;
-		triangle.v[2].x = quad.v[0].pos.x;
-		triangle.v[2].y = quad.v[0].pos.y;
-		triangle.z[0] = quad.v[2].z;
-		triangle.z[1] = (quad.v[3].z-triangle.z[0])*oneOverArea2;
-		triangle.z[2] = (quad.v[0].z-triangle.z[0])*oneOverArea2;
-
-		/*auto v0 = triangle.v[0];
-		triangle.v[0] = triangle.v[2];
-		triangle.v[1].x = quad.v[3].pos.x;
-		triangle.v[1].x = quad.v[3].pos.y;
-		auto z3 = quad.v[3].z;
-		triangle.v[2] = v0;
-		auto z0 = triangle.z[0];
-		triangle.z[0] = triangle.z[2];
-		triangle.z[1] = z3;
-		triangle.z[2] = z0;*/
-		
-		triangleBins_[triIndex+1] = triangle;
-	} }
+#endif
+}
+void DepthBuffer::binAABB(vec3f min,vec3f max) {
+	//Transform the AABB vertices to Homogenous clip space
+	vec4f vertices[8];
+	gatherBoxVertices(vertices,min,max);
+	transformBoxVertices(vertices,viewProjection_);
+	boxVerticesToScreenVertices(vertices,clipSpaceToScreenSpaceMultiplier,center_);
+	ScreenSpaceQuad faces[6];
+	auto faceCount = extractBoxQuads(faces,vertices,aabbFrontFaceMask);
+	for(uint32 i = 0;i<faceCount;++i)
+		binQuad(faces[i]);
 }
 
-void DepthBuffer::rasterizeTiles() {
+//Rasterization of tiles.
+uint32 DepthBuffer::rasterizeTiles() {
+	//Flush unbinned triangles
+#ifdef ARPHEG_ARCH_X86
+	if(triangleBufferOffset>0){
+		binTriangles4Simd(triangleBufferStorage,triangleBufferOffset);
+		triangleBufferOffset = 0;
+	}
+#endif
+	uint32 count = 0;
+	for(int32 i = 0;i<tileCount_.x*tileCount_.y;++i){
+		 count+=tileTriangleCount_[i];
+	}
 	for(int32 y = 0;y<tileCount_.y;++y){
 	for(int32 x = 0;x<tileCount_.x;++x){
 		rasterizeTile(x,y,0);
 	} }
+
+	return count;
+}
+inline int32 orient2d(const vec2i a, const vec2i b, const vec2i c){
+    return (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
 }
 void DepthBuffer::drawTriangle(BinnedTriangle& tri,vec2i tilePos) {
 	vec2i v0(tri.v[0].x,tri.v[0].y);
@@ -636,36 +699,271 @@ void DepthBuffer::drawTriangle(BinnedTriangle& tri,vec2i tilePos) {
 	}
 }
 void DepthBuffer::rasterizeTile(int32 x,int32 y,uint32 pass) {
-	enum { SimdLaneWidth = 1 };
-
 	if(pass == 0){
 		//init tile(clear depth).	
 		//auto tilePixels = data_ + x*tileSize_.x*tileSize_.y + (y*tileSize_.x*tileSize_.y)*tileCount_.x;
 		//clearDepth(tilePixels,tileSize_.x*tileSize_.y,1.0f);
+	}
+	if(mode_ == kModeDepthPackedQuads){
+		rasterizeTile2x2(x,y,pass);
+		return;
 	}
 	auto tileIndex = x + y*tileCount_.x;
 	auto count = tileTriangleCount_[tileIndex];
 	tileTriangleCount_[tileIndex] = 0;
 	auto faces = triangleBins_ + x*kMaxTrianglesPerTile + y*tileCount_.x*kMaxTrianglesPerTile;
 	vec2i tilePos(x*tileSize_.x,y*tileSize_.y);
+	vec2i tileEnd(tilePos + tileSize_);
+#ifdef ARPHEG_ARCH_X86
+	enum { kNumLanes = 4 };
+
+	//Flush denormals to zero
+	//_mm_setcsr( _mm_getcsr() | 0x8040 );
+
+	VecS32 colOffset(0, 1, 0, 1);
+	VecS32 rowOffset(0, 0, 1, 1);
+
+	//Process the 4 binned triangles at a time
+	VecS32 vertexX[3];
+	VecS32 vertexY[3];
+	VecF32  vertexZ[4];
+	VecS32 tileMinXSimd(tilePos.x);
+	VecS32 tileMaxXSimd(tilePos.x+tileSize_.x-1);
+	VecS32 tileMinYSimd(tilePos.y);
+	VecS32 tileMaxYSimd(tilePos.y+tileSize_.y-1);
+
+	for(uint32 i = 0;i<count;i += kNumLanes){
+
+		uint32 numSimdTris = std::min(uint32(kNumLanes),count-i);
+		auto f = faces+i;
+		for(uint32 ii = 0;ii< numSimdTris;++ii){
+			vertexX[0].lane[ii] = f[ii].v[0].x;
+			vertexY[0].lane[ii] = f[ii].v[0].y;
+			vertexX[1].lane[ii] = f[ii].v[1].x;
+			vertexY[1].lane[ii] = f[ii].v[1].y;
+			vertexX[2].lane[ii] = f[ii].v[2].x;
+			vertexY[2].lane[ii] = f[ii].v[2].y;
+			vertexZ[ii] = VecF32(f[ii].z[0],f[ii].z[1],f[ii].z[2],0.0f);
+		}
+
+		// Fab(x, y) =     Ax       +       By     +      C              = 0
+		// Fab(x, y) = (ya - yb)x   +   (xb - xa)y + (xa * yb - xb * ya) = 0
+		// Compute A = (ya - yb) for the 3 line segments that make up each triangle
+		VecS32 A0 = vertexY[1] - vertexY[2];
+		VecS32 A1 = vertexY[2] - vertexY[0];
+		VecS32 A2 = vertexY[0] - vertexY[1];
+
+		// Compute B = (xb - xa) for the 3 line segments that make up each triangle
+		VecS32 B0 = vertexX[2] - vertexX[1];
+		VecS32 B1 = vertexX[0] - vertexX[2];
+		VecS32 B2 = vertexX[1] - vertexX[0];
+
+		// Compute C = (xa * yb - xb * ya) for the 3 line segments that make up each triangle
+		VecS32 C0 = vertexX[1] * vertexY[2] - vertexX[2] * vertexY[1];
+		VecS32 C1 = vertexX[2] * vertexY[0] - vertexX[0] * vertexY[2];
+		VecS32 C2 = vertexX[0] * vertexY[1] - vertexX[1] * vertexY[0];
+
+		// Use bounding box traversal strategy to determine which pixels to rasterize 
+		VecS32 minX = vmax(vmin(vmin(vertexX[0], vertexX[1]), vertexX[2]), tileMinXSimd); 
+		VecS32 maxX   = vmin(vmax(vmax(vertexX[0], vertexX[1]), vertexX[2]), tileMaxXSimd);
+
+		VecS32 minY = vmax(vmin(vmin(vertexY[0], vertexY[1]), vertexY[2]), tileMinYSimd); 
+		VecS32 maxY   = vmin(vmax(vmax(vertexY[0], vertexY[1]), vertexY[2]), tileMaxYSimd);
+
+		//Rasterize each triangle individually
+		for(uint32 lane = 0;lane < numSimdTris;++lane){
+			float zz[3] = { vertexZ[lane].lane[0],vertexZ[lane].lane[1],vertexZ[lane].lane[2] };
+
+			int32 a0 = A0.lane[lane]; 
+			int32 a1 = A1.lane[lane]; 
+			int32 a2 = A2.lane[lane]; 
+			int32 b0 = B0.lane[lane];
+			int32 b1 = B1.lane[lane];
+			int32 b2 = B2.lane[lane];
+
+			int32 minx = minX.lane[lane];
+			int32 maxx = maxX.lane[lane];
+			int32 miny = minY.lane[lane];
+			int32 maxy = maxY.lane[lane];
+
+			auto w0_row = a0 * minx + b0 * miny + C0.lane[lane];
+			auto w1_row = a1 * minx + b1 * miny + C1.lane[lane];
+			auto w2_row = a2 * minx + b2 * miny + C2.lane[lane];
+
+			float* tilePixels = data_ + tilePos.x*tileSize_.y + (tilePos.y*tileSize_.x)*tileCount_.x;
 	
-	for(uint32 i = 0;i<count;i += SimdLaneWidth){
+			int32 idx2  = minx-tilePos.x + (miny - tilePos.y)*tileSize_.x;
+			int32 spanx = maxx-minx;
+			//float depthInc = float(a1)*zz[1] + float(a2)*zz[2];
+	
+			for(int32 endIdx2 = idx2+(tileSize_.x)*(maxy-miny);idx2<=endIdx2;idx2+=tileSize_.x){
+				auto w0 = w0_row;
+				auto w1 = w1_row;
+				auto w2 = w2_row;
+
+				auto idx = idx2;
+				for(int32 endIdx = idx+spanx;idx<=endIdx;++idx){
+					auto mask = w0|w1|w2;
+					if(mask >= 0){
+						float betaf = float(w1);
+						float gamaf = float(w2);
+						float depth = zz[0] + betaf*zz[1] + gamaf*zz[2];
+
+						auto d = tilePixels[idx];
+						d = depth<d?depth:d;
+						tilePixels[idx] = d;
+					}
+
+					w0+=a0;
+					w1+=a1;
+					w2+=a2;
+					//depth+=depthInc;
+				}
+				w0_row += b0;
+				w1_row += b1;
+				w2_row += b2;
+			}
+		}
+	}
+#else
+	for(uint32 i = 0;i<count;i ++){
 		drawTriangle(faces[i],tilePos);
 	}
+#endif
+}
+//Rasterize 4 pixels at once
+void DepthBuffer::rasterizeTile2x2(int32 x,int32 y,uint32 pass) {
+
+	auto tileIndex = x + y*tileCount_.x;
+	auto count = tileTriangleCount_[tileIndex];
+	tileTriangleCount_[tileIndex] = 0;
+	auto faces = triangleBins_ + x*kMaxTrianglesPerTile + y*tileCount_.x*kMaxTrianglesPerTile;
+	vec2i tilePos(x*tileSize_.x,y*tileSize_.y);
+	vec2i tileEnd(tilePos + tileSize_);
+#ifdef ARPHEG_ARCH_X86
+	enum { kNumLanes = 4 };
+
+	//Flush denormals to zero
+	_mm_setcsr( _mm_getcsr() | 0x8040 );
+
+	VecS32 colOffset(0, 1, 0, 1);
+	VecS32 rowOffset(0, 0, 1, 1);
+
+	//Process the 4 binned triangles at a time
+	VecS32 vertexX[3];
+	VecS32 vertexY[3];
+	VecF32  vertexZ[4];
+	VecS32 tileMinXSimd(tilePos.x);
+	VecS32 tileMaxXSimd(tilePos.x+tileSize_.x-2);
+	VecS32 tileMinYSimd(tilePos.y);
+	VecS32 tileMaxYSimd(tilePos.y+tileSize_.y-2);
+
+	for(uint32 i = 0;i<count;i += kNumLanes){
+
+		uint32 numSimdTris = std::min(uint32(kNumLanes),count-i);
+		auto f = faces+i;
+		for(uint32 ii = 0;ii< numSimdTris;++ii){
+			vertexX[0].lane[ii] = f[ii].v[0].x;
+			vertexY[0].lane[ii] = f[ii].v[0].y;
+			vertexX[1].lane[ii] = f[ii].v[1].x;
+			vertexY[1].lane[ii] = f[ii].v[1].y;
+			vertexX[2].lane[ii] = f[ii].v[2].x;
+			vertexY[2].lane[ii] = f[ii].v[2].y;
+			vertexZ[ii] = VecF32(f[ii].z[0],f[ii].z[1],f[ii].z[2],0.0f);
+		}
+
+		// Fab(x, y) =     Ax       +       By     +      C              = 0
+		// Fab(x, y) = (ya - yb)x   +   (xb - xa)y + (xa * yb - xb * ya) = 0
+		// Compute A = (ya - yb) for the 3 line segments that make up each triangle
+		VecS32 A0 = vertexY[1] - vertexY[2];
+		VecS32 A1 = vertexY[2] - vertexY[0];
+		VecS32 A2 = vertexY[0] - vertexY[1];
+
+		// Compute B = (xb - xa) for the 3 line segments that make up each triangle
+		VecS32 B0 = vertexX[2] - vertexX[1];
+		VecS32 B1 = vertexX[0] - vertexX[2];
+		VecS32 B2 = vertexX[1] - vertexX[0];
+
+		// Compute C = (xa * yb - xb * ya) for the 3 line segments that make up each triangle
+		VecS32 C0 = vertexX[1] * vertexY[2] - vertexX[2] * vertexY[1];
+		VecS32 C1 = vertexX[2] * vertexY[0] - vertexX[0] * vertexY[2];
+		VecS32 C2 = vertexX[0] * vertexY[1] - vertexX[1] * vertexY[0];
+
+		// Use bounding box traversal strategy to determine which pixels to rasterize 
+		VecS32 minX = vmax(vmin(vmin(vertexX[0], vertexX[1]), vertexX[2]), tileMinXSimd) & VecS32(~1);
+		VecS32 maxX   = vmin(vmax(vmax(vertexX[0], vertexX[1]), vertexX[2]), tileMaxXSimd);
+
+		VecS32 minY = vmax(vmin(vmin(vertexY[0], vertexY[1]), vertexY[2]), tileMinYSimd) & VecS32(~1);
+		VecS32 maxY = vmin(vmax(vmax(vertexY[0], vertexY[1]), vertexY[2]), tileMaxYSimd);
+
+		//Rasterize each triangle individually
+		for(uint32 lane = 0;lane < numSimdTris;++lane){
+			//Rasterize in 2x2 quads.
+			VecF32 zz[3];
+			zz[0] = VecF32(vertexZ[lane].lane[0]);
+			zz[1] = VecF32(vertexZ[lane].lane[1]);
+			zz[2] = VecF32(vertexZ[lane].lane[2]);
+
+			VecS32 a0(A0.lane[lane]);
+			VecS32 a1(A1.lane[lane]);
+			VecS32 a2(A2.lane[lane]);
+			VecS32 b0(B0.lane[lane]);
+			VecS32 b1(B1.lane[lane]);
+			VecS32 b2(B2.lane[lane]);
+
+			int32 minx = minX.lane[lane];
+			int32 maxx = maxX.lane[lane];
+			int32 miny = minY.lane[lane];
+			int32 maxy = maxY.lane[lane];
+
+			VecS32 col = VecS32(minx) + colOffset;
+			VecS32 row = VecS32(miny) + rowOffset;
+			auto rowIdx = miny*size_.x + 2 * minx;
+			VecS32 w0_row  = a0 * col + b0 * row + VecS32(C0.lane[lane]);
+			VecS32 w1_row  = a1 * col + b1 * row + VecS32(C1.lane[lane]);
+			VecS32 w2_row  = a2 * col + b2 * row + VecS32(C2.lane[lane]);
+
+			//Multiply each weight by two(rasterize 2x2 quad at once).
+			a0 = shiftl<1>(a0);
+			a1 = shiftl<1>(a1);
+			a2 = shiftl<1>(a2);
+			b0 = shiftl<1>(b0);
+			b1 = shiftl<1>(b1);
+			b2 = shiftl<1>(b2);
+
+			VecF32 zInc = itof(a1)*zz[1] + itof(a2)*zz[2];
+	
+			//int32 idx2  = minx-tilePos.x + (miny - tilePos.y)*tileSize_.x;
+			//int32 spanx = maxx-minx;
+			for(int32 y = miny;y<=maxy;y+=2,rowIdx += 2 * size_.x){
+				auto w0 = w0_row;
+				auto w1 = w1_row;
+				auto w2 = w2_row;
+
+				VecF32 depth = zz[0] + itof(w1)*zz[1] + itof(w2)*zz[2];
+				auto idx = rowIdx;
+				
+				for(int32 x = minx;x<=maxx;x+=2,idx+=4){
+					auto mask = w0|w1|w2;
+					VecF32 previousDepth = VecF32::load(data_+idx);
+					VecF32 mergedDepth = vmin(depth,previousDepth);
+					previousDepth = select(mergedDepth,previousDepth,mask);
+					previousDepth.store(data_+idx);
+	
+					w0+=a0;
+					w1+=a1;
+					w2+=a2;
+					depth+=zInc;
+				}
+				w0_row += b0;
+				w1_row += b1;
+				w2_row += b2;
+			}
+		}
+	}
+#endif
 }
 
-uint32 DepthBuffer::rasterizeAABB(vec3f min,vec3f max) {
-	//Transform the AABB vertices to Homogenous clip space
-	vec4f vertices[8];
-	gatherBoxVertices(vertices,min,max);
-	transformBoxVertices(vertices,viewProjection_);
-	boxVerticesToScreenVertices(vertices,clipSpaceToScreenSpaceMultiplier,center_);
-	ScreenSpaceQuad faces[6];
-	auto faceCount = extractBoxQuads(faces,(ScreenSpaceVertex*)vertices,aabbFrontFaceMask);
-	for(uint32 i = 0;i<faceCount;++i)
-		binQuad(faces[i]);
-	return faceCount;
-}
 
 bool DepthBuffer::testAABB(vec3f min,vec3f max){
 	//Transform the AABB vertices to Homogenous clip space
