@@ -2,6 +2,7 @@
 
 #include "../../core/math.h"
 #include "../types.h"
+#include "../../application/tasking.h"
 
 namespace rendering {
 namespace softwareOcclusion {
@@ -20,6 +21,7 @@ public:
 
 	void binAABB(vec3f min,vec3f max);
 
+	application::tasking::TaskID createRasterizationTasks();
 	uint32 rasterizeTiles();
 
 	//Tests if the AABB is occluded or not
@@ -36,6 +38,7 @@ private:
 	void binTriangle(const vec4f& v0,const vec4f& v1,const vec4f& v2);
 	void binTriangles4Simd(vec4f vertices[12],uint32 count);
 	void rasterizeTile(int32 x,int32 y,uint32 pass = 0);
+	void rasterizeTile(uint32 id);
 	void rasterizeTile2x2(int32 x,int32 y,uint32 pass = 0);
 
 	inline void getRay(vec3f& o,vec3f& dir,int32 x,int32 y);

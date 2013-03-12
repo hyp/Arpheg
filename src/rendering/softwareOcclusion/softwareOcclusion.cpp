@@ -3,6 +3,7 @@
 #include "../../core/bufferStringStream.h"
 #include "../../services.h"
 #include "../../application/logging.h"
+#include "../../application/tasking.h"
 #include "softwareOcclusion.h"
 
 #ifdef ARPHEG_ARCH_X86
@@ -616,6 +617,30 @@ void DepthBuffer::binAABB(vec3f min,vec3f max) {
 }
 
 //Rasterization of tiles.
+application::tasking::TaskID DepthBuffer::createRasterizationTasks() {
+	//Flush unbinned triangles
+#ifdef ARPHEG_ARCH_X86
+	if(triangleBufferOffset>0){
+		binTriangles4Simd(triangleBufferStorage,triangleBufferOffset);
+		triangleBufferOffset = 0;
+	}
+#endif
+	application::tasking::Task tasks[64];
+	uint32 taskCount = tileCount_.x*tileCount_.y;
+	assertRelease(taskCount < 64);
+	struct Worker{
+		static void work(application::tasking::Task* task){
+			auto self = (DepthBuffer*)task->data;
+			self->rasterizeTile(task->dataU32);
+		}
+	};
+	for(uint32 i = 0;i<taskCount;++i){
+		tasks[i].work = Worker::work;
+		tasks[i].data = this;
+		tasks[i].dataU32 = i;
+	}
+	return services::tasking()->addGroup(tasks,taskCount);
+}
 uint32 DepthBuffer::rasterizeTiles() {
 	//Flush unbinned triangles
 #ifdef ARPHEG_ARCH_X86
@@ -697,6 +722,11 @@ void DepthBuffer::drawTriangle(BinnedTriangle& tri,vec2i tilePos) {
 		w1_row += b20;
 		w2_row += b01;
 	}
+}
+void DepthBuffer::rasterizeTile(uint32 id) {
+	int32 x = int32(id%tileCount_.x);
+	int32 y = int32(id/tileCount_.x);
+	rasterizeTile(x,y,0);
 }
 void DepthBuffer::rasterizeTile(int32 x,int32 y,uint32 pass) {
 	if(pass == 0){
