@@ -994,10 +994,108 @@ void DepthBuffer::rasterizeTile2x2(int32 x,int32 y,uint32 pass) {
 #endif
 }
 
+//Returns true if the triangle is visible
+bool DepthBuffer::testTriangle2x2(const vec4f& v0,const vec4f& v1,const vec4f& v2){
+	VecS32 colOffset(0, 1, 0, 1);
+	VecS32 rowOffset(0, 0, 1, 1);
+
+	vec2i vertex[3];
+	vertex[0] = vec2i(v0.x,v0.y);
+	vertex[1] = vec2i(v1.x,v1.y);
+	vertex[2] = vec2i(v2.x,v2.y);
+
+	float minZ = std::min(v0.z,std::min(v1.z,v2.z));
+	VecF32 fixedDepth(minZ);
+
+	// Fab(x, y) =     Ax       +       By     +      C              = 0
+	// Fab(x, y) = (ya - yb)x   +   (xb - xa)y + (xa * yb - xb * ya) = 0
+	// Compute A = (ya - yb) for the 3 line segments that make up each triangle
+	auto A0 = vertex[1].y - vertex[2].y;
+	auto A1 = vertex[2].y - vertex[0].y;
+	auto A2 = vertex[0].y - vertex[1].y;
+
+	// Compute B = (xb - xa) for the 3 line segments that make up each triangle
+	auto B0 = vertex[2].x - vertex[1].x;
+	auto B1 = vertex[0].x - vertex[2].x;
+	auto B2 = vertex[1].x - vertex[0].x;
+
+	// Compute C = (xa * yb - xb * ya) for the 3 line segments that make up each triangle
+	auto C0 = vertex[1].x * vertex[2].y - vertex[2].x * vertex[1].y;
+	auto C1 = vertex[2].x * vertex[0].y - vertex[0].x * vertex[2].y;
+	auto C2 = vertex[0].x * vertex[1].y - vertex[1].x * vertex[0].y;
+
+	// Use bounding box traversal strategy to determine which pixels to rasterize 
+	auto minx = std::max(std::min(std::min(vertex[0].x,vertex[1].x),vertex[2].x),0) & (~1);
+	auto maxx = std::min(std::max(std::max(vertex[0].x,vertex[1].x),vertex[2].x),size_.x-2);
+	auto miny = std::max(std::min(std::min(vertex[0].y,vertex[1].y),vertex[2].y),0) & (~1);
+	auto maxy = std::min(std::max(std::max(vertex[0].y,vertex[1].y),vertex[2].y),size_.y-2);
+
+	VecS32 a0(A0);
+	VecS32 a1(A1);
+	VecS32 a2(A2);
+	VecS32 b0(B0);
+	VecS32 b1(B1);
+	VecS32 b2(B2);
+
+	VecS32 col = VecS32(minx) + colOffset;
+	VecS32 row = VecS32(miny) + rowOffset;
+	auto rowIdx = miny*size_.x + 2 * minx;
+	VecS32 w0_row  = a0 * col + b0 * row + VecS32(C0);
+	VecS32 w1_row  = a1 * col + b1 * row + VecS32(C1);
+	VecS32 w2_row  = a2 * col + b2 * row + VecS32(C2);
+
+	//Multiply each weight by two(rasterize 2x2 quad at once).
+	a0 = shiftl<1>(a0);
+	a1 = shiftl<1>(a1);
+	a2 = shiftl<1>(a2);
+	b0 = shiftl<1>(b0);
+	b1 = shiftl<1>(b1);
+	b2 = shiftl<1>(b2);
+
+	for(int32 y = miny;y<=maxy;y+=2,rowIdx += 2 * size_.x){
+		auto w0 = w0_row;
+		auto w1 = w1_row;
+		auto w2 = w2_row;
+
+		auto idx = rowIdx;
+				
+		for(int32 x = minx;x<=maxx;x+=2,idx+=4){
+			auto mask = w0|w1|w2;
+			auto masks = _mm_movemask_ps(bits2float(mask).simd);
+			if(masks != 0xF){
+				VecF32 previousDepth = VecF32::load(data_+idx);
+				auto cmpMask = ((~masks)&0xF)& _mm_movemask_ps(cmple(fixedDepth,previousDepth).simd);
+				if(cmpMask){
+					return true;
+				}
+			}
+			
+			w0+=a0;
+			w1+=a1;
+			w2+=a2;
+		}
+		w0_row += b0;
+		w1_row += b1;
+		w2_row += b2;
+	}
+	return false;
+}
 
 bool DepthBuffer::testAABB(vec3f min,vec3f max){
-	//Transform the AABB vertices to Homogenous clip space
 	vec4f vertices[8];
+	gatherBoxVertices(vertices,min,max);
+	transformBoxVertices(vertices,viewProjection_);
+	boxVerticesToScreenVertices(vertices,clipSpaceToScreenSpaceMultiplier,center_);
+	ScreenSpaceQuad faces[6];
+	auto faceCount = extractBoxQuads(faces,vertices,aabbFrontFaceMask);
+	for(uint32 i = 0;i<faceCount;++i){
+		if(testTriangle2x2(faces[i].v[0],faces[i].v[1],faces[i].v[2])) return true;
+		if(testTriangle2x2(faces[i].v[2],faces[i].v[3],faces[i].v[0])) return true;
+	}
+	return false;
+
+	//Transform the AABB vertices to Homogenous clip space
+	//vec4f vertices[8];
 	vertices[0] = vec4f(min.x,min.y,min.z,1);
 	vertices[1] = vec4f(max.x,min.y,min.z,1);
 	vertices[2] = vec4f(max.x,max.y,min.z,1);
@@ -1020,24 +1118,49 @@ bool DepthBuffer::testAABB(vec3f min,vec3f max){
 	clipMin = vec4f::max(clipMin,vec4f(-1.0f,-1.0f,-1.0f,-1.0f))*clipSpaceToScreenSpaceMultiplier;
 	clipMax = vec4f::min(clipMax,vec4f(1.0f,1.0f,1.0f,1.0f))*clipSpaceToScreenSpaceMultiplier;
 	vec2i screenMin = vec2i(int32(clipMin.x),int32(clipMin.y))+center_;
+	screenMin.x &= (~1);screenMin.y &= (~1);
 	vec2i screenMax = vec2i(int32(clipMax.x),int32(clipMax.y))+center_;
 	
+	auto rowIdx = screenMin.y*size_.x + 2 * screenMin.x;
+
+	float minZ = vertices[0].z;
+	for(uint32 i = 1;i< 8;i++){
+		minZ = std::min(minZ,vertices[i].z);
+	}
+	VecF32 flatDepth(minZ);
+
 	//Iterate over the pixels
-	for(;screenMin.y < screenMax.y;screenMin.y++){
-	for(int32 x = screenMin.x;x<screenMax.x;x++){
+	for(;screenMin.y < screenMax.y;screenMin.y+=2,rowIdx += 2 * size_.x){
+		auto idx = rowIdx;
+	for(int32 x = screenMin.x;x<screenMax.x;x+=2,idx+=4){
 		//Fetch the distance value for the current pixel.
-		float depth = data_[x+screenMin.y*size_.x];
-		//Compute the distance to the aabb (raytrace)
+		auto depth = VecF32::load(data_ + idx);
 		vec3f rayo,rayd;
 		getRay(rayo,rayd,x,screenMin.y);
 		float dist;
 		if(!rayAABBIntersect(min,max,rayo,rayd,dist)) continue;
-		//Convert the distance from view space to depth space [-1,1]
 		dist = ((dist-znear_)/zfar_ ) * 2.0f - 1.0f;
+		VecF32 flatDepth(dist);
+		flatDepth.store(data_+idx);
+		auto mask = _mm_movemask_ps(cmple(flatDepth,depth).simd);
+		//if(mask != 0)//{
+			//return true; //Visible
+		//}
+			
+		//
+		//
+
+		//Compute the distance to the aabb (raytrace)
+		//vec3f rayo,rayd;
+		//getRay(rayo,rayd,x,screenMin.y);
+		//float dist;
+		
+		//Convert the distance from view space to depth space [-1,1]
+		//dist = ((dist-znear_)/zfar_ ) * 2.0f - 1.0f;
 		//Compare the values.
 		//if(dist <= depth){
 			//return true;
-			data_[x+screenMin.y*size_.x] = dist;
+		//	data_[idx] = dist;
 		//}
 	} }
 	return false;
