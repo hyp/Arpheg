@@ -21,12 +21,13 @@ namespace rendering {
 		void quad(vec2f min,vec2f max,vec2f uvStart,vec2f uvEnd,uint32 colour);
 		void line(vec2f a,vec2f b,uint32 colour = 0xFF000000);
 	private:
-		void initialize();
+		void initialize(const VertexDescriptor& vertexLayout);
 		uint32 vertexSize;
 		uint32 vertexBufferSize;
 		uint8* buffer,*bufferEnd,*bufferReset;
 		Buffer vertices;
 		Buffer indices;
+		Mesh mesh;
 		Mode mode;
 	};
 

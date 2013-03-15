@@ -1,85 +1,101 @@
-#include "../core/branchHint.h"
-#include "../services.h"
+#include "../core/assert.h"
 #include "2d.h"
 
 namespace rendering {
+namespace draw2D {
 
-	Layer2D::Effect::Effect() : matrix("matrix"), texture0("texture0") {
-	}
-	Layer2D::Layer2D() {
-			auto renderer = services::rendering();
-			const char* vertex = "attribute vec2 position; attribute vec2 texcoord; uniform highp mat4 matrix; varying mediump vec2 uv; void main() { gl_Position = matrix * vec4(position.xy,0,1); uv = texcoord; }";
-			const char* pixel =  "varying mediump vec2 uv; uniform sampler2D texture0; void main() { gl_FragColor = texture2D(texture0,uv); }";
-			texturedPrimitiveShaders[0] = renderer->create(Shader::Vertex,vertex);
-			texturedPrimitiveShaders[1] = renderer->create(Shader::Pixel,pixel);
-			texturedPrimitiveEffect.pipeline = renderer->create(VertexDescriptor::positionAs2Float_texcoordAs2Float(),texturedPrimitiveShaders[0],texturedPrimitiveShaders[1]);
+static core::TypeDescriptor triangleColourVertexLayoutDesc[2] = 
+	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TUint8,4 } };
+static core::TypeDescriptor triangleTextureVertexLayoutDesc[2] = 
+	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TFloat,2 } };
+static core::TypeDescriptor triangleTextureColourVertexLayoutDesc[3] = 
+	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TUint8,4 } };
 
-			projection_ = mat44f::identity();
-			view(mat44f::identity());
-	}
-	Layer2D::~Layer2D() {
-		services::rendering()->release(texturedPrimitiveEffect.pipeline);
-		services::rendering()->release(texturedPrimitiveShaders[0]);
-		services::rendering()->release(texturedPrimitiveShaders[1]);
-	}
-	void Layer2D::projection(const mat44f& matrix) {
-		projection_ = matrix;
-		projView = projection_ * view_;
-	}
-	void Layer2D::view(const mat44f& matrix) {
-		view_ = matrix;
-		projView = projection_ * view_;
-	}
-	void Layer2D::bind(Service* renderer){
-		this->renderer = renderer;
-		//Default projection matrix
-		auto size = renderer->context()->frameBufferSize();
-		projection(mat44f::ortho(vec2f(0.0,0.0),vec2f(float(size.x),float(size.y))));
-		//Enable blending.
-		auto blendState = rendering::blending::State(rendering::blending::SrcAlpha,rendering::blending::InvertedSrcAlpha);
-		renderer->bind(blendState);	
-		currentEffect = &texturedPrimitiveEffect;
-		renderer->bind(currentEffect->pipeline);
-	}
-	void Layer2D::bind(rendering::Texture2D texture) {
-		int32 slot = 0;
-		renderer->bind(texture,slot);
-		renderer->bind(currentEffect->texture0,&slot);
-	}
-	void Layer2D::bind(Effect* effect) {
-		currentEffect = effect;
-		renderer->bind(currentEffect->pipeline);
-	}
-	void Layer2D::drawQuad(uint32 bufferOffset,vec2f position,vec2f rotation,vec2f scale) {
-		mat44f pvm = mat44f::translateRotateScale2D(projView,position,rotation,scale);
-		renderer->bind(currentEffect->matrix,pvm);
-		renderer->bind(rendering::topology::TriangleStrip);
-		renderer->draw(bufferOffset,4);
-	}
-
-	void Layer2D::allocateSpriteGeometry(resources::Sprite* sprite,vec2f* frameUVdata) {
-		auto frameCount = sprite->frameCount();
-		uint32 startingOffset = 0;
-		auto renderer = services::rendering();
-		for(uint32 i = 0;i < frameCount;++i){
-			vec2f* coords = frameUVdata + i*2;
-			vec2f data[] = { vec2f(-1,-1),coords[0] , vec2f(1,-1),vec2f(coords[1].x,coords[0].y)  , vec2f(-1,1),vec2f(coords[0].x,coords[1].y) ,  vec2f(1,1),coords[1] };
-			renderer->update(Buffer::Vertex,sprite->buffer,startingOffset,data,sizeof(data));
+VertexDescriptor vertexLayout(uint32 m) {
+	VertexDescriptor result;
+	using namespace mode;
+	if(m & Textured){
+		if(m & Coloured){
+			result.count =3;result.fields = triangleTextureColourVertexLayoutDesc;
+		} else {
+			result.count =2;result.fields = triangleTextureVertexLayoutDesc;
 		}
+		return result;
+	} else if(m & Coloured){
+		result.count =2;result.fields = triangleColourVertexLayoutDesc;
+		return result;
 	}
 
-
-	void Layer2D::bind(const components::Transform2D& transformation) {
-		mat44f pvm = mat44f::translateRotateScale2D(projView,transformation.translation,transformation.rotation,transformation.scale);
-		renderer->bind(currentEffect->matrix,pvm);
-	}
-	void Layer2D::draw(const components::Sprite& entity,const components::Transform2D& transformation) {
-		renderer->bindVertices(entity.sprite->buffer);
-		bind(transformation);
-		int32 slot = 0;
-		renderer->bind(entity.sprite->texture,slot);
-		renderer->bind(currentEffect->texture0,&slot);
-		renderer->bind(rendering::topology::TriangleStrip);
-		renderer->draw(entity.sprite->frame(entity.currentFrame)->bufferOffset,4);
-	}
+	assert(false && "Unrenderable 2D mode!");
+	result.count = 0;
+	return result;
 }
+
+void textured::coloured::quad(batching::Geometry& geometry,vec2f min,vec2f max,vec2f uvMin,vec2f uvMax,uint32 colour){
+	auto vs = geometry.vertices;
+	auto uvs = (uint32*)vs;
+	//20*4 = 80 vertex bytes per quad
+	vs[0] = min.x;vs[1] = min.y;vs[2] = uvMin.x;vs[3] = uvMin.y; uvs[4] = colour;
+	vs[5] = max.x;vs[6] = min.y;vs[7] = uvMax.x;vs[8] = uvMin.y; uvs[9] = colour;
+	vs[10] = max.x;vs[11] = max.y;vs[12] = uvMax.x;vs[13] = uvMax.y; uvs[14] = colour;
+	vs[15] = min.x;vs[16] = max.y;vs[17] = uvMin.x;vs[18] = uvMax.y; uvs[19] = colour;
+	//2*6 = 12 index bytes per quad
+	auto ids = geometry.indices;
+	auto baseVertex = uint16(geometry.indexOffset);
+	ids[0] = baseVertex;ids[1] = baseVertex+1;ids[2] = baseVertex+2;
+	ids[3] = baseVertex+2;ids[4] = baseVertex+3;ids[5] = baseVertex;
+	geometry.vertices += 20;
+	geometry.indices += 6;
+	geometry.indexOffset += 4;
+}
+void textured::quad(batching::Geometry& geometry,vec2f min,vec2f max,vec2f uvMin,vec2f uvMax){
+	auto vs = geometry.vertices;
+	//16*4 = 64 vertex bytes per quad
+	vs[0] = min.x;vs[1] = min.y;vs[2] = uvMin.x;vs[3] = uvMin.y;
+	vs[4] = max.x;vs[5] = min.y;vs[6] = uvMax.x;vs[7] = uvMin.y;
+	vs[8] = max.x;vs[9] = max.y;vs[10] = uvMax.x;vs[11] = uvMax.y;
+	vs[12] = min.x;vs[13] = max.y;vs[14] = uvMin.x;vs[15] = uvMax.y;
+	//2*6 = 12 index bytes per quad
+	auto ids = geometry.indices;
+	auto baseVertex = uint16(geometry.indexOffset);
+	ids[0] = baseVertex;ids[1] = baseVertex+1;ids[2] = baseVertex+2;
+	ids[3] = baseVertex+2;ids[4] = baseVertex+3;ids[5] = baseVertex;
+	geometry.vertices += 16;
+	geometry.indices += 6;
+	geometry.indexOffset += 4;
+}
+void coloured::quad(batching::Geometry& geometry,vec2f vertices[4],uint32 colours[4]) {
+	auto vs = geometry.vertices;
+	//12*4 = 48 vertex bytes per quad
+	for(uint32 i = 0;i<4;++i,vs+=3){
+		auto uvs = (uint32*)vs;
+		vs[0] = vertices[i].x;vs[1] = vertices[i].y;uvs[2] = colours[i];
+	}
+	//2*6 = 12 index bytes per quad
+	auto ids = geometry.indices;
+	auto baseVertex = uint16(geometry.indexOffset);
+	ids[0] = baseVertex;ids[1] = baseVertex+1;ids[2] = baseVertex+2;
+	ids[3] = baseVertex+2;ids[4] = baseVertex+3;ids[5] = baseVertex;
+	geometry.vertices += 12;
+	geometry.indices += 6;
+	geometry.indexOffset += 4;
+}
+void coloured::quad(batching::Geometry& geometry,vec2f min,vec2f max,uint32 colours[4]) {
+	auto vs = geometry.vertices;
+	auto uvs = (uint32*)vs;
+	//12*4 = 48 vertex bytes per quad
+	vs[0] = min.x;vs[1] = min.y;uvs[2] = colours[0];
+	vs[3] = max.x;vs[4] = min.y;uvs[5] = colours[1];
+	vs[6] = max.x;vs[7] = max.y;uvs[8] = colours[2];
+	vs[9] = min.x;vs[10] = max.y;uvs[11] = colours[4];
+	//2*6 = 12 index bytes per quad
+	auto ids = geometry.indices;
+	auto baseVertex = uint16(geometry.indexOffset);
+	ids[0] = baseVertex;ids[1] = baseVertex+1;ids[2] = baseVertex+2;
+	ids[3] = baseVertex+2;ids[4] = baseVertex+3;ids[5] = baseVertex;
+	geometry.vertices += 12;
+	geometry.indices += 6;
+	geometry.indexOffset += 4;
+}	
+
+} }

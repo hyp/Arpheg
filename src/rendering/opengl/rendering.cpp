@@ -1,23 +1,43 @@
-#include <assert.h>
-#include <string.h>
+﻿#include <string.h>
 
 #include "../../core/allocatorNew.h"
+#include "../../core/assert.h"
 #include "../../services.h"
 #include "gl.h"
 #include "rendering.h"
 
-#ifdef ARPHEG_RENDERING_GLES
-	#define GL_NOVAO
+namespace rendering {
+
+#ifndef ARPHEG_RENDERING_GL_VAO
+	struct EmulatedVAO {
+		GLsizei stride;
+		uint32 count;
+		struct Field {
+			uint8 size;
+			uint8 type;
+			uint8 normalized;
+			uint8 totalSize;
+		};
+	};
 #endif
 
-namespace rendering {
-	Service::Service() : objectEmulationBuffer(2048,core::memory::globalAllocator()), samplerEmulationBuffer(2048,core::memory::globalAllocator()) {
+	Service::Service() : 
+#ifndef ARPHEG_RENDERING_GL_VAO
+		vaoEmulationBuffer(2048,nullptr,core::BufferGrowOnOverflow),
+#endif
+		objectEmulationBuffer(2048,nullptr),
+		samplerEmulationBuffer(2048,nullptr) {
+		
 		//Set the initial state.
 		glDisable(GL_BLEND);
 		glDisable(GL_CULL_FACE);
 		glEnable (GL_DEPTH_TEST);
 		glPixelStorei(GL_UNPACK_ALIGNMENT,1);
-		bind(topology::Triangle);
+
+		blendingState_.enabled = false;
+		rasterState_.cullMode = rasterization::CullNone;
+		rasterState_.fillMode = rasterization::Solid;
+		rasterState_.isFrontFaceCounterClockwise = false;
 
 		//NB emulation: Create a default sampler object
 		texture::SamplerDescriptor defaultSampler;
@@ -36,6 +56,9 @@ namespace rendering {
 		return type == Buffer::Vertex? GL_ARRAY_BUFFER : type == Buffer::Index? GL_ELEMENT_ARRAY_BUFFER : GL_UNIFORM_BUFFER;
 	}
 	Buffer Service::create (Buffer::Type type,bool dynamic,size_t size,void* data) {
+#ifdef ARPHEG_RENDERING_GL_VAO
+		if(type == Buffer::Index) glBindVertexArray(0); //NB: important
+#endif
 		Buffer buffer;
 		CHECK_GL(glGenBuffers(1, &buffer.id));
 		assert(buffer.id!=0);
@@ -44,7 +67,34 @@ namespace rendering {
 		CHECK_GL(glBufferData(target, size, data, dynamic? GL_DYNAMIC_DRAW : GL_STATIC_DRAW));
 		return buffer;
 	}
+	void Service::recreate (Buffer::Type type,Buffer buffer,bool dynamic,size_t size,void* data) {
+#ifdef ARPHEG_RENDERING_GL_VAO
+		if(type == Buffer::Index) glBindVertexArray(0); //NB: important
+#endif
+		GLenum target = bufferType(type);
+		glBindBuffer(target, buffer.id);
+		glBufferData(target, size, data, dynamic? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+	}
+#ifndef ARPHEG_RENDERING_GLES
+	Buffer::Mapping   Service::map(Buffer::Type type,Buffer buffer){
+		GLenum target = bufferType(type);
+		Buffer::Mapping result;
+		result.id = buffer.id;
+		result.type = type;
+		glBindBuffer(target, buffer.id);
+		result.data = glMapBuffer(target,GL_WRITE_ONLY);
+		return result;
+	}
+	void   Service::unmap(const Buffer::Mapping& mapping) {
+		GLenum target = bufferType(mapping.type);
+		glBindBuffer(target, mapping.id);
+		glUnmapBuffer(target);
+	}
+#endif
 	void   Service::update (Buffer::Type type,Buffer buffer,size_t offset,void* data,size_t size) {
+#ifdef ARPHEG_RENDERING_GL_VAO
+		if(type == Buffer::Index) glBindVertexArray(0); //NB: important
+#endif
 		GLenum target = bufferType(type);
 		CHECK_GL(glBindBuffer(target, buffer.id));
 		CHECK_GL(glBufferSubData(target, offset,size,data));
@@ -53,6 +103,108 @@ namespace rendering {
 		if(buffer.id){
 			CHECK_GL(glDeleteBuffers(1,&buffer.id));
 		}
+	}
+	static inline GLenum typeType(uint32 id){
+		//TODO full
+		if(id == core::TypeDescriptor::TFloat) return GL_FLOAT;
+		else if(id == core::TypeDescriptor::TInt32) return GL_INT;
+		else if(id == core::TypeDescriptor::TInt8)  return GL_BYTE;
+		else if(id == core::TypeDescriptor::TUint8) return GL_UNSIGNED_BYTE;
+		else if(id == core::TypeDescriptor::TUint16) return GL_UNSIGNED_SHORT;
+		else if(id == core::TypeDescriptor::THalf) return GL_HALF_FLOAT;
+		return 0;
+	}
+
+#ifndef ARPHEG_RENDERING_GL_VAO
+	static uint32 emulatedVAOnew(core::BufferAllocator& buffer,core::TypeDescriptor* fields, uint32 count){
+		uint32 i = 0;
+		GLsizei stride = 0;
+		for(auto field = fields,end = fields + count;field < end;++field)
+			stride += field->size();
+		auto vao = (EmulatedVAO*)buffer.allocate(sizeof(EmulatedVAO) + sizeof(EmulatedVAO::Field)*count);
+		vao->stride = stride;vao->count = count;
+		auto dest = (EmulatedVAO::Field*)(vao+1);
+
+		for(auto field = fields,end = fields + count;field < end;++field,++i,++dest){
+			dest->size = field->count;
+			uint32 glType = typeType(field->id);
+			assert((glType - GL_BYTE) < 255);
+			dest->type = uint8(glType - GL_BYTE);
+			dest->normalized = field->id == core::TypeDescriptor::TUint8? 1: 0;
+			auto sz = field->size();
+			assert(sz < 255);
+			dest->totalSize = uint8(sz);
+		}
+		return buffer.toOffset(vao);
+	}
+	static uint32 emulatedVAOgen(core::BufferAllocator& buffer,core::TypeDescriptor* fields, uint32 count){
+		//Check if such vao already exists.
+		return emulatedVAOnew(buffer,fields,count);
+	}
+	static uint32 emulatedVAObind(core::BufferAllocator& buffer,uint32 id,uint32 oldAttribEnabledCount){
+
+		auto vao = (EmulatedVAO*)(buffer.toPointer(id));
+		GLsizei stride = vao->stride; auto count = vao->count;
+		//NB: disable the previous vertex attributes
+		for(auto i = count; i < oldAttribEnabledCount; ++i) glDisableVertexAttribArray(i);
+		
+		auto fields = (EmulatedVAO::Field*)(vao+1);
+		const void* offset = (const void*)0;
+		for(uint32 i = 0;i<count;++i){
+			glEnableVertexAttribArray(i);
+			glVertexAttribPointer(i,GLint(fields->size),GLenum(fields->type),GLboolean(fields->normalized),stride,offset);
+			offset  = (const void*) ( ((const uint8*)offset) + size_t(fields->totalSize));
+		}
+		
+		return count;
+	}
+#endif
+	static uint32 bindVertexInput(core::TypeDescriptor* fields, uint32 count,const void* offset = nullptr){
+		uint32 i = 0;
+		GLsizei stride = 0;
+		for(auto field = fields,end = fields + count;field < end;++field)
+			stride += field->size();
+		for(auto field = fields,end = fields + count;field < end;++field,++i){
+			glEnableVertexAttribArray(i);
+			glVertexAttribPointer(i, (GLint)field->count, typeType(field->id), field->id == core::TypeDescriptor::TUint8? GL_TRUE: GL_FALSE, stride, offset);
+			offset = (const void*) ( ((const uint8*)offset) + field->size());
+		}
+		return i;
+	}
+	Mesh   Service::create(Buffer vertices,Buffer indices,const VertexDescriptor& vertexLayout){
+#ifdef ARPHEG_RENDERING_GL_VAO
+		Mesh mesh = {vertices,indices,0};
+		CHECK_GL(glGenVertexArrays(1, &mesh.vao));	
+		CHECK_GL(glBindVertexArray(mesh.vao));
+		glBindBuffer(GL_ARRAY_BUFFER,vertices.id);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,indices.id);
+		bindVertexInput(vertexLayout.fields,vertexLayout.count);
+		glBindVertexArray(0);
+#else
+		Mesh mesh = {vertices,indices,emulatedVAOgen(vaoEmulationBuffer,vertexLayout.fields,vertexLayout.count)};
+#endif
+		return mesh;
+	}
+	void Service::update(Mesh& mesh,Buffer vertices,Buffer indices,const VertexDescriptor& vertexLayout) {
+#ifdef ARPHEG_RENDERING_GL_VAO
+		mesh.vbo = vertices;
+		mesh.ibo = indices;
+		CHECK_GL(glBindVertexArray(mesh.vao));
+		glBindBuffer(GL_ARRAY_BUFFER,vertices.id);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,indices.id);
+		bindVertexInput(vertexLayout.fields,vertexLayout.count);
+		glBindVertexArray(0);
+#else
+		mesh.vertices = vertices;
+		mesh.indices  = indices;
+		mesh.vao = emulatedVAOgen(vaoEmulationBuffer,vertexLayout.fields,vertexLayout.count);
+#endif
+	}
+	void   Service::release(const Mesh& mesh){
+#ifdef ARPHEG_RENDERING_GL_VAO
+		assert(mesh.vao);
+		glDeleteVertexArrays(1,&mesh.vao);
+#endif
 	}
 
 	static void onGLShaderError(GLuint id, bool shader = true) {
@@ -74,7 +226,20 @@ namespace rendering {
 		return id;
 	}
 	Shader Service::create(Shader::Type type,const char* src,size_t sourceLength) {
-		Shader shader = { createShader(type == Shader::Vertex? GL_VERTEX_SHADER : type == Shader::Pixel? GL_FRAGMENT_SHADER : GL_GEOMETRY_SHADER,src,sourceLength) };
+		GLenum t;
+		switch(type){
+		case Shader::Vertex: t = GL_VERTEX_SHADER; break;
+		case Shader::Pixel:  t = GL_FRAGMENT_SHADER; break;
+#ifndef ARPHEG_RENDERING_GLES
+		//TODO api support
+		case Shader::Geometry: t = GL_GEOMETRY_SHADER; break;
+		case Shader::TesselationControl: t = GL_TESS_CONTROL_SHADER; break;
+		case Shader::TesselationEvaluation: t = GL_TESS_EVALUATION_SHADER; break;
+#endif
+		default:
+			assert(false && "Invalid shader type");
+		}
+		Shader shader = { createShader(t,src,sourceLength) };
 		return shader;
 	}
 	void Service::release(Shader shader) {
@@ -82,28 +247,6 @@ namespace rendering {
 		CHECK_GL(glDeleteShader(shader.id));
 	}
 
-	static inline GLenum typeType(uint32 id){
-		//TODO full
-		if(id == CoreTypeDescriptor::TFloat) return GL_FLOAT;
-		else if(id == CoreTypeDescriptor::TInt32) return GL_INT;
-		else if(id == CoreTypeDescriptor::TInt8)  return GL_BYTE;
-		else if(id == CoreTypeDescriptor::TUint8) return GL_UNSIGNED_BYTE;
-		else if(id == CoreTypeDescriptor::TUint16) return GL_UNSIGNED_SHORT;
-		else if(id == CoreTypeDescriptor::THalf) return GL_HALF_FLOAT;
-		return 0;
-	}
-	static uint32 bindVertexInput(CoreTypeDescriptor* fields, uint32 count,void* offset = nullptr){
-		uint32 i = 0;
-		GLsizei stride = 0;
-		for(auto field = fields,end = fields + count;field < end;++field)
-			stride += field->size();
-		for(auto field = fields,end = fields + count;field < end;++field,++i){
-			glEnableVertexAttribArray(i);
-			glVertexAttribPointer(i, (GLint)field->count, typeType(field->id), field->id == CoreTypeDescriptor::TUint8? GL_TRUE: GL_FALSE, stride, offset);
-			offset = (GLvoid*) ( ((uint8*)offset) + field->size());
-		}
-		return i;
-	}
 	Pipeline::Constant::Constant(const char* name){
 		this->location = -1;
 		this->shaderType = 0;
@@ -111,78 +254,44 @@ namespace rendering {
 		this->count = count;
 		this->name = name;
 	}
-	Pipeline Service::create(VertexDescriptor input,Shader vertexShader,Shader pixelShader) {
-		GLuint program = glCreateProgram();
 
-		CHECK_GL(glAttachShader(program, vertexShader.id));
-		CHECK_GL(glAttachShader(program, pixelShader.id));
-
-		for(uint32 i = 0 ,end = input.count;i < end;++i)
-			CHECK_GL(glBindAttribLocation(program,GLuint(i),input.slots[i]));
-		CHECK_GL(glLinkProgram(program));
-		//check
-		GLint result = GL_FALSE;
-		glGetProgramiv(program, GL_LINK_STATUS, &result);
-		if (!result) onGLShaderError(program, false);
-
-		GLuint vao;
-#ifndef GL_NOVAO
-		//vao
-		glGenVertexArrays(1, &vao);	
-		glBindVertexArray(vao);
-		bindVertexInput(input.fields,input.count);
-		//glBindVertexArray(0);
-#endif
-
-		inputDescriptorBound = false;
-
-		Pipeline pipeline = { program,input.count,input.fields };
-		return pipeline;
+	Pipeline::GLSLLayout::GLSLLayout() {
+		vertexAttributes = nullptr;
+		vertexAttributeCount = 0;
+		pixelAttributes = nullptr;
+		pixelAttributeCount = 0;
 	}
-	Pipeline Service::create(VertexDescriptor input,Shader shaders[],size_t count) {
+	Pipeline Service::create(Shader shaders[],size_t count,const Pipeline::GLSLLayout& glslLayout) {
 		GLuint program = glCreateProgram();
 		for(size_t i =0;i<count;++i)
 			CHECK_GL(glAttachShader(program, shaders[i].id));
-		for(uint32 i = 0 ,end = input.count;i < end;++i)
-			CHECK_GL(glBindAttribLocation(program,GLuint(i),input.slots[i]));
+		for(uint32 i = 0 ,end = glslLayout.vertexAttributeCount;i < end;++i)
+			CHECK_GL(glBindAttribLocation(program,GLuint(i),glslLayout.vertexAttributes[i]));
+#ifndef ARPHEG_RENDERING_GLES
+		for(uint32 i = 0, end = glslLayout.pixelAttributeCount;i<end;++i)
+			CHECK_GL(glBindFragDataLocation(program,GLuint(i),glslLayout.pixelAttributes[i]));
+#endif
 		CHECK_GL(glLinkProgram(program));
 		//check
 		GLint result = GL_FALSE;
 		glGetProgramiv(program, GL_LINK_STATUS, &result);
 		if (!result) onGLShaderError(program, false);
 
-		GLuint vao;
-#ifndef GL_NOVAO
-		//vao
-		glGenVertexArrays(1, &vao);	
-		glBindVertexArray(vao);
-		//bindVertexInput(input.fields,input.count);
-		//glBindVertexArray(0);
-#endif
-
-		inputDescriptorBound = false;
-
-		Pipeline pipeline = { program,input.count,input.fields };
+		Pipeline pipeline = { program };
 		return pipeline;
 	}
 	void Service::release(Pipeline pipeline) {
 		glDeleteProgram(pipeline.id);
 	}
 
-	void Service::clear() {
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	}
-	void Service::clear(const vec4f& color) {
-		glClearColor(color.x,color.y,color.z,color.w);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	void Service::clear(const vec4f& color,bool clearColour,bool clearDepth,bool clearStencil) {
+		GLbitfield mask = (clearColour? GL_COLOR_BUFFER_BIT : 0) | (clearDepth? GL_DEPTH_BUFFER_BIT : 0) | (clearStencil? GL_STENCIL_BUFFER_BIT : 0);
+		if(clearColour) glClearColor(color.x,color.y,color.z,color.w);
+		glClear(mask);
 	}
 	void Service::bind(Pipeline pipeline) {
 		currentPipeline = pipeline.id;
 		glUseProgram(pipeline.id);
-
-		inputDescriptorBound = false;
-		inputDescriptor      = pipeline.inputDescriptor;
-		inputDescriptorCount = pipeline.inputDescriptorCount;
 	}
 
 	enum {
@@ -277,49 +386,37 @@ namespace rendering {
 		assert(constant.coreTypeId == TMat44);
 		glUniformMatrix4fv(location,constant.count,false,(const GLfloat*)&matrix.a.x);
 	}
+	void Service::bind(Pipeline::Constant& constant,const mat44f* matrix) {
+		if(constant.location == -1){
+			initUniform(currentPipeline,constant);
+			if(constant.location == -1) return;
+		}
+		GLint location = constant.location;
+		assert(constant.coreTypeId == TMat44);
+		glUniformMatrix4fv(location,constant.count,false,(const GLfloat*)&matrix->a.x);
+	}
 	void Service::bind(Pipeline::Constant& constant,Buffer data,size_t offset,size_t size) {
-		/*if(constant.location == -1){
+		if(constant.location == -1){
 			constant.location = glGetUniformBlockIndex(currentPipeline,constant.name);
 			if(constant.location == -1) return;
 		}
 		if(offset == 0 && size == 0)  glBindBufferBase     (GL_UNIFORM_BUFFER,0,data.id);
 		else glBindBufferRange(GL_UNIFORM_BUFFER,0,data.id,offset,size);
-		glUniformBlockBinding(currentPipeline,constant.location,0);*/
+		glUniformBlockBinding(currentPipeline,constant.location,0);
 	}
 
-	void Service::bindVertices(Buffer buffer) {
-#ifndef PLATFORM_RENDERING_BUFFERS_ONLY
-		if(inputVertices){
-			inputVertices = nullptr;
-			inputIndices = nullptr;
-		}
-#endif
-		CHECK_GL(glBindBuffer(GL_ARRAY_BUFFER,buffer.id));
-		//Vertex attributes will have to be rebound - this might not be necessary.
-		inputDescriptorBound = false;
+	/*void Service::bindVertices(Buffer buffer) {
+		glBindBuffer(GL_ARRAY_BUFFER,buffer.id);
 	}
 	void Service::bindIndices (Buffer buffer,uint32 indexSize) {
-#ifdef PLATFORM_RENDERING_GLES
+#ifdef ARPHEG_RENDERING_GLES
 		//NB: no uint indices in gles 2 unless OES_element_index_uint is present
 		assert(indexSize < 3);
 #endif
 		assert(indexSize == 1 || indexSize == 2 || indexSize == 4);
-
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,buffer.id);
 		currentIndexSize = indexSize == 2? GL_UNSIGNED_SHORT : (indexSize == 1? GL_UNSIGNED_BYTE : GL_UNSIGNED_INT);
-	}
-#ifndef PLATFORM_RENDERING_BUFFERS_ONLY
-	void Service::bindVerticesIndicesStream(void* vertices,void* indices) {
-		if(!inputVertices){
-			//Make sure no buffers are bound
-			glBindBuffer(GL_ARRAY_BUFFER,0);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
-		}
-		inputVertices = vertices;
-		inputIndices = indices;
-		inputDescriptorBound = false;
-	}
-#endif
+	}*/
 
 	static inline GLenum primitiveMode(topology::Primitive type) {
 		using namespace topology;
@@ -331,44 +428,44 @@ namespace rendering {
 			case Triangle: return GL_TRIANGLES;
 			case TriangleStrip: return GL_TRIANGLE_STRIP;
 			case TriangleFan: return GL_TRIANGLE_FAN;
+			//case Patch: return GL_PATCHES​;
 		}
 		assert(false && "Invalid control flow!");
 		return 0;
 	}
-	void Service::bind(topology::Primitive primitiveTopology) {
-		currentPrimitiveTopology = primitiveMode(primitiveTopology);
+	void Service::bind(const Mesh& mesh,topology::Primitive primitiveTopology,uint32 indexSize) {
+#ifdef ARPHEG_RENDERING_GLES
+		//NB: no uint indices in gles 2 unless OES_element_index_uint is present
+		assert(indexSize < 3);
+#endif
+		assert(indexSize == 0 || indexSize == 1 || indexSize == 2 || indexSize == 4);
+#ifdef ARPHEG_RENDERING_GL_VAO
+		glBindVertexArray(mesh.vao);
+		currentIndexSize = indexSize == 2? GL_UNSIGNED_SHORT : (indexSize == 1? GL_UNSIGNED_BYTE : GL_UNSIGNED_INT);
+#else
+		glBindBuffer(GL_ARRAY_BUFFER,mesh.vbo.id);
+		if(indexSize) glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,mesh.ibo.id);
+		//if(currentVao != mesh.vao){
+			vaoEmulation_oldAttribEnabledCount = emulatedVAObind(mesh.vao,vaoEmulation_oldAttribEnabledCount);
+			//currentVao = mesh.vao;
+		//}
+		currentIndexSize = indexSize == 2? GL_UNSIGNED_SHORT : (indexSize == 1? GL_UNSIGNED_BYTE : GL_UNSIGNED_INT);
+#endif
+		currentPrimitiveTopology = primitiveTopology == topology::Triangle? GL_TRIANGLES: (primitiveMode(primitiveTopology));
 	}
 	void Service::draw(uint32 offset,uint32 count) {
-//#ifdef GL_NOVAO
-		if(!inputDescriptorBound){
-			auto oldEnabled = inputDescriptorEnabled; 
-			inputDescriptorEnabled = bindVertexInput(inputDescriptor,inputDescriptorCount,inputVertices);
-			//Disable the previous attributes.
-			for(auto i = inputDescriptorEnabled; i < oldEnabled; ++i) glDisableVertexAttribArray(i);
-			inputDescriptorBound = true;
-		}
-//#endif
 		glDrawArrays(currentPrimitiveTopology,offset,count);
 	}
 	void Service::drawIndexed(uint32 offset,uint32 count) {
-//#ifdef GL_NOVAO
-		if(!inputDescriptorBound){
-			auto oldEnabled = inputDescriptorEnabled; 
-			inputDescriptorEnabled = bindVertexInput(inputDescriptor,inputDescriptorCount,inputVertices);
-			//Disable the previous attributes.
-			for(auto i = inputDescriptorEnabled; i < oldEnabled; ++i) glDisableVertexAttribArray(i);
-			inputDescriptorBound = true;
-		}
-//#endif
-#ifdef PLATFORM_RENDERING_GLES
+#ifdef ARPHEG_RENDERING_GLES
 		//NB: no drawRangeElements in gles 2
 		assert(offset == 0);
+		glDrawElements(currentPrimitiveTopology,count,currentIndexSize,nullptr);
+#else
+		glDrawElements(currentPrimitiveTopology,count,currentIndexSize,(const void*)offset);
 #endif
-#ifdef PLATFORM_RENDERING_BUFFERS_ONLY
-		const void* inputIndices = nullptr;
-#endif
-		glDrawElements(currentPrimitiveTopology,count,currentIndexSize,inputIndices);
 	}
+	
 	static inline GLenum blendMode(blending::Blend mode){
 		using namespace blending;
 		switch(mode) {
@@ -387,46 +484,46 @@ namespace rendering {
 		return 0;
 	}
 	void Service::bind(const blending::State& state) {
-		if(state.enabled != blendingState.enabled){
+		if(state.enabled != blendingState_.enabled){
 			if(state.enabled) glEnable(GL_BLEND);
 			else {
 				glDisable(GL_BLEND);
-				blendingState.enabled = false;
+				blendingState_.enabled = false;
 				return;
 			}
-		}
+		} else return;
 		if(state.srcRgb == state.srcAlpha && state.destRgb == state.destAlpha){
 			glBlendFunc(blendMode(state.srcRgb),blendMode(state.destRgb));
 		} else {
 			glBlendFuncSeparate(blendMode(state.srcRgb),blendMode(state.destRgb),blendMode(state.srcAlpha),blendMode(state.destAlpha));
 		}
-		blendingState = state;
-		//TODO
+		blendingState_ = state;
 	}
 	void Service::bind(const rasterization::State& state) {
-#ifdef PLATFORM_RENDERING_GLES
-		assert(state.fillMode == rasterization::Solid);//Lame
-#endif
-		if(state.cullMode != rasterState.cullMode){
+		if(state.cullMode != rasterState_.cullMode){
 			if(state.cullMode == rasterization::CullNone) glDisable(GL_CULL_FACE);
 			else {
 				glEnable(GL_CULL_FACE);
 				glCullFace(state.cullMode == rasterization::CullBack? GL_BACK : GL_FRONT);
 			}
 		}
-		rasterState = state;
+#ifndef ARPHEG_RENDERING_GLES
+		if(state.fillMode != rasterState_.fillMode){
+			glPolygonMode(GL_FRONT_AND_BACK,state.fillMode == rasterization::Solid? GL_FILL : GL_LINES);
+		}
+#else
+		assert(state.fillMode == rasterization::Solid);//Lame
+#endif
+		rasterState_ = state;
 	}
 	void Service::bind(const Viewport& viewport) {
 		glViewport(viewport.position.x,viewport.position.y,viewport.size.x,viewport.size.y);
 	}
 
 	void Service::servicePreStep() {
-#ifndef PLATFORM_RENDERING_BUFFERS_ONLY
-		inputVertices = nullptr;
-		inputIndices = nullptr;
+#ifndef ARPHEG_RENDERING_GL_VAO
+		//vaoEmulation_oldAttribEnabledCount = 0;
 #endif
-		inputDescriptorBound = false;
-		inputDescriptorEnabled = 0;
 		currentPipeline = 0;
 	}
 }

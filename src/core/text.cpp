@@ -4,6 +4,163 @@
 
 namespace core {
 namespace text {
+	
+inline bool isSpace(uint8 c){
+	return c == ' ' || c == '\t';
+}
+
+Bytes trimFront(Bytes string) {
+	for(;string.begin < string.end;string.begin++){
+		if(!isSpace(*string.begin)) break;
+	}
+	return string;
+}
+Bytes trim(Bytes string) {
+	for(;string.begin < string.end;string.begin++){
+		if(!isSpace(*string.begin)) break;
+	}
+	for(;string.end>string.begin;string.end--){
+		if(!isSpace(*(string.end-1))) break;
+	}
+	return string;
+}
+bool  matchNewline(Bytes& string){
+	if(string.empty()) return false;
+	auto firstCharacter = *string.begin;
+	if(firstCharacter >= 0xA && firstCharacter <= 0xD){
+		string.begin++;
+		if(firstCharacter == 0xD && string.begin < string.end && *string.begin == 0xA) string.begin++;//CR+LF
+		return true;
+	}
+	return false;
+}
+Bytes parseLine(Bytes& string){
+	auto line = string;
+	auto str = string.begin;
+	for(;str < string.end;str++){
+		auto firstCharacter = *str;
+		if(firstCharacter >= 0xA && firstCharacter <= 0xD){
+			line.end = str;
+			str++;
+			if(firstCharacter == 0xD && str < string.end && *str == 0xA) str++;//CR+LF
+			break;
+		}
+	}
+	string.begin = str;
+	return line;
+}
+uint32 countTabs(Bytes string) {
+	uint32 i = 0;
+	for(;string.begin < string.end;string.begin++){
+		if(*string.begin != '\t'){
+			break;
+		}
+		i++;
+	}
+	return i;
+}
+bool matchTabs(Bytes string,uint32 count){
+	uint32 i = 0;
+	for(;string.begin < string.end;string.begin++){
+		if(*string.begin != '\t'){
+			break;
+		}
+		i++;
+	}
+	if(i < count){
+		string = trimFront(string);
+		if(!string.empty()){
+			auto firstCharacter = *string.begin;
+			if(firstCharacter >= 0xA && firstCharacter <= 0xD) return true;
+		}
+		return false;
+	}
+	return true;
+}
+Bytes parseIndentedLines(Bytes& string) {
+	auto tabCount = countTabs(string);
+
+	auto line = string;
+	for(;string.begin < string.end;string.begin++){
+		auto firstCharacter = *string.begin;
+
+		if(firstCharacter >= 0xA && firstCharacter <= 0xD){
+			line.end = string.begin;
+			string.begin++;
+			if(firstCharacter == 0xD && string.begin < string.end && *string.begin == 0xA) 
+				string.begin++;//CR+LF
+			//Newline
+			if(!matchTabs(string,tabCount)) break;
+		}
+	}
+	return line;
+}
+int32 parseInt32(Bytes& string) {
+	auto str = string.begin;
+	int32 value = 0;
+	int32 sign  = 1;
+	if(str < string.end){
+		if(*str == '-'){
+			sign = -1;
+			str++;
+		}
+	}
+	for(;str < string.end;str++){
+		auto firstCharacter = *str;
+		if(firstCharacter >= '0' && firstCharacter <= '9'){
+			value = value*10 + (int)(firstCharacter - '0');
+			continue;
+		}
+		break;
+	}
+	string.begin = str;
+	return sign == -1? -value:value;
+}
+float parseFloat(Bytes& string) {
+	auto str = string.begin;
+	float value = 0.0f;
+	float iteration = 0.1f;
+	bool plus = true;
+	bool integer = true;
+	if(str < string.end){
+		if(*str == '-'){
+			plus = false;
+			str++;
+		}
+	}
+	for(;str < string.end;str++){
+		auto firstCharacter = *str;
+		if(firstCharacter >= '0' && firstCharacter <= '9'){
+			if(integer)
+				value = value*10.0f + (float)(firstCharacter - '0');
+			else {
+				value = value + iteration*(float)(firstCharacter - '0');
+				iteration*=0.1f;
+			}
+			continue;
+		}
+		else if(integer && firstCharacter == '.'){
+			integer=false;
+			continue;
+		}
+		break;
+	}
+	string.begin = str;
+	return plus? value:-value;
+}
+Bytes parseUntil(Bytes& string,char  terminator){
+	auto line = string;
+	auto str = string.begin;
+	for(;str < string.end;str++){
+		auto firstCharacter = *str;
+		if(firstCharacter == terminator){
+			line.end = str;
+			break;
+		}
+	}
+	string.begin = str;
+	return line;
+}
 
 Tokenizer::Tokenizer(Bytes data,uint32 modes): data_(data),mode(modes) {
 }
@@ -151,9 +308,6 @@ void Tokenizer::readString(char* buffer,int bufferLength,char end) {
 	}
 	buffer[i] = '\0';
 	tokenEnd = data_.begin;
-}
-
-Lines::Lines(Bytes data,uint32 modes) : Tokenizer(data,modes) {
 }
 
 }

@@ -78,66 +78,63 @@ STRUCT_PREALIGN(16) struct vec4f {
 	inline vec4f(vec2f v);
 	inline vec4f(vec3f v);
 	inline vec4f(float xx,float yy,float zz,float ww);
-	inline vec4f(__m128 value) { _mm_store_ps(&x,value); }
-
+#ifdef ARPHEG_ARCH_X86
+	explicit inline vec4f(__m128 value);
+	inline void operator = (__m128 value);
+#endif
+	
 	inline vec4f operator + (const vec4f& v) const;
 	inline vec4f operator - (const vec4f& v) const;
 	inline vec4f operator * (const vec4f& v) const;
 	inline vec4f operator / (const vec4f& v) const;
 	inline vec4f operator * (float k) const;
 
-	inline vec4f normalize() const { float len = 1.0f/(x*x+y*y+z*z+w*w); return vec4f(x*len,y*len,z*len,w*len); }
-	inline float dot(const vec4f& v) const  { return x*v.x+y*v.y+z*v.z+w*v.w; }
-	inline float dot3(const vec4f& v) const { return x*v.x+y*v.y+z*v.z; }
+	inline float length() const;
+	inline float lengthSquared() const;
+	inline float length3() const;
+	inline float length3Squared() const;
+	inline vec4f normalize() const;
+	inline float dot(const vec4f& v) const;
+	inline float dot3(const vec4f& v) const;
+	inline vec3f xyz() const;
+	inline vec2f xy() const;
+	inline vec4f xxxx() const;
+	inline vec4f yyyy() const;
+	inline vec4f zzzz() const;
+	inline vec4f wwww() const;
+	
+	static inline vec4f zero();
+	static inline vec4f load(const float *ptr);
+	static inline vec4f unalignedLoad(const float *ptr);
+	inline void store(float *ptr) const;
+	inline void unalignedStore(float *ptr) const;
 
 	static inline vec4f min(const vec4f& x,const vec4f& y);
 	static inline vec4f max(const vec4f& x,const vec4f& y);
+	static inline vec4f lerp(const vec4f& a,const vec4f& b,float k);
 } STRUCT_POSTALIGN(16);
+#include "math/vec4f.h"
 
-inline vec4f::vec4f(vec2f v) : x(v.x),y(v.y)        { }
-inline vec4f::vec4f(vec3f v) : x(v.x),y(v.y),z(v.z) { }
-inline vec4f::vec4f(float xx,float yy,float zz,float ww) : x(xx),y(yy),z(zz),w(ww)  { }
+STRUCT_PREALIGN(16) struct Quaternion : vec4f {
+	float x,y,z,w;
 
+	inline Quaternion () {}
+	inline Quaternion(float xx,float yy,float zz,float ww);
+	explicit inline Quaternion(const vec4f& v);
 #ifdef ARPHEG_ARCH_X86
-
-inline vec4f::vec4f(float xx) {
-	__m128 mk = _mm_set_ps1(xx);
-	_mm_store_ps(&x,mk);
-}
-
-inline vec4f vec4f::operator + (const vec4f& v) const { return vec4f(_mm_add_ps(*(__m128*)(&x),*(__m128*)(&v.x))); } 
-inline vec4f vec4f::operator - (const vec4f& v) const { return vec4f(_mm_sub_ps(*(__m128*)(&x),*(__m128*)(&v.x))); } 
-inline vec4f vec4f::operator * (const vec4f& v) const { return vec4f(_mm_mul_ps(*(__m128*)(&x),*(__m128*)(&v.x))); }
-inline vec4f vec4f::operator / (const vec4f& v) const { return vec4f(_mm_div_ps(*(__m128*)(&x),*(__m128*)(&v.x))); }
-inline vec4f vec4f::operator * (float k) const { 
-	__m128 mk = _mm_set_ps1(k);
-	return vec4f(_mm_mul_ps(*(__m128*)(&x),mk));
-}
-inline vec4f vec4f::min(const vec4f& x,const vec4f& y) {
-	return vec4f(_mm_min_ps(*(__m128*)(&x.x),*(__m128*)(&y.x)));
-}
-inline vec4f vec4f::max(const vec4f& x,const vec4f& y) {
-	return vec4f(_mm_max_ps(*(__m128*)(&x.x),*(__m128*)(&y.x)));
-}
-
-#else
-
-inline vec4f::vec4f(float xx) : x(xx),y(xx),z(xx),w(xx) { }
-
-inline vec4f vec4f::operator + (const vec4f& v) const { return vec4f(x+v.x,y+v.y,z+v.z,w+v.w); } 
-inline vec4f vec4f::operator - (const vec4f& v) const { return vec4f(x-v.x,y-v.y,z-v.z,w-v.w); } 
-inline vec4f vec4f::operator * (const vec4f& v) const { return vec4f(x*v.x,y*v.y,z*v.z,w*v.w); }
-inline vec4f vec4f::operator / (const vec4f& v) const { return vec4f(x/v.x,y/v.y,z/v.z,w/v.w); }
-inline vec4f operator * (float k) const { return vec4f(x*k,y*k,z*k,w*k); }
-
-inline vec4f vec4f::min(const vec4f& x,const vec4f& y) {
-	return vec4f(std::min(x.x,y.x),std::min(x.y,y.y),std::min(x.z,y.z),std::min(x.w,y.w));
-}
-inline vec4f vec4f::max(const vec4f& x,const vec4f& y) {
-	return vec4f(std::max(x.x,y.x),std::max(x.y,y.y),std::max(x.z,y.z),std::max(x.w,y.w));
-}
-
+	explicit inline Quaternion(__m128 value);
 #endif
+
+	static inline Quaternion identity();
+	inline Quaternion operator* (const Quaternion& v) const;
+	inline Quaternion operator* (float k) const;
+	inline vec4f v() const;
+	inline float norm() const;
+	inline Quaternion conjugate() const;
+	inline vec3f rotate(const vec3f& point) const;
+	static inline Quaternion lerp(const Quaternion& a,const Quaternion& b,float k);
+} STRUCT_POSTALIGN(16);
+#include "math/quaternion.h"
 
 STRUCT_PREALIGN(16) struct mat44f {
 	vec4f a,b,c,d; //columns
@@ -152,20 +149,55 @@ STRUCT_PREALIGN(16) struct mat44f {
 	static mat44f lookAt(vec3f eye, vec3f center, vec3f up);
 	static mat44f translate(vec3f x);
 	static mat44f scale(vec3f x);
+	static mat44f rotate(const Quaternion& rotation);
 
 	//Assume: The direction is a vector of unit length 1.
 	static mat44f translateRotateScale2D(vec2f translation,vec2f direction,vec2f scale);
 	static mat44f translateRotateScale2D(const mat44f& projectionView,vec2f translation,vec2f direction,vec2f scale);
 
-	//
-	
 } STRUCT_POSTALIGN(16) ;
+
+inline vec4f operator * (const mat44f& m,const vec4f& v);
+
+inline vec4f operator * (const mat44f& m,const vec4f& v) {
+#ifdef PLATFORM_MATH_MAT_ROWMAJOR
+	vec4f res;
+	res.x = m.a.x * v.x + m.a.y * v.y + m.a.z * v.z + m.a.w * v.w;
+	res.y = m.b.x * v.x + m.b.y * v.y + m.b.z * v.z + m.b.w * v.w;
+	res.z = m.c.x * v.x + m.c.y * v.y + m.c.z * v.z + m.c.w * v.w;
+	res.w = m.d.x * v.x + m.d.y * v.y + m.d.z * v.z + m.d.z * v.w;
+	return res;
+#else
+#ifdef ARPHEG_ARCH_X86
+	__m128 vx = _mm_set_ps1(v.x);
+	vx = _mm_mul_ps(*(__m128*)(&m.a.x),vx);
+	__m128 vy = _mm_set_ps1(v.y);
+	vy = _mm_mul_ps(*(__m128*)(&m.b.x),vy);
+	vx = _mm_add_ps(vx,vy);
+	__m128 vz = _mm_set_ps1(v.z);
+	vz = _mm_mul_ps(*(__m128*)(&m.c.x),vz);
+	vx = _mm_add_ps(vx,vz);
+	__m128 vw = _mm_set_ps1(v.w);
+	vw = _mm_mul_ps(*(__m128*)(&m.d.x),vw);
+	return vec4f(_mm_add_ps(vx,vw));
+#else
+	vec4f res;
+	res.x = m.a.x * v.x + m.b.x * v.y + m.c.x * v.z + m.d.x * v.w;
+	res.y = m.a.y * v.x + m.b.y * v.y + m.c.y * v.z + m.d.y * v.w;
+	res.z = m.a.z * v.x + m.b.z * v.y + m.c.z * v.z + m.d.z * v.w;
+	res.w = m.a.w * v.x + m.b.w * v.y + m.c.w * v.z + m.d.w * v.w;
+	return res;
+#endif
+#endif
+}
 
 struct vec2i {
 	int32 x,y;
 
 	inline vec2i() {}
 	inline vec2i(int32 xx,int32 yy) : x(xx),y(yy) {}
+	inline vec2i operator + (vec2i v) const { return vec2i(x+v.x,y+v.y); } 
+	inline vec2i operator - (vec2i v) const { return vec2i(x-v.x,y-v.y); } 
 };
 
 STRUCT_PREALIGN(16) struct vec4i {

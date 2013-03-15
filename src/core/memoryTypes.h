@@ -3,4 +3,5 @@
 
 namespace core {
 	class Allocator;
+	class BufferAllocator;
 }

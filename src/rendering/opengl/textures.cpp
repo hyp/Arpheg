@@ -114,56 +114,8 @@ namespace rendering {
 		//Leave it hanging, emulating...
 	}
 
-	void Service::bind(TextureBuffer texture,uint32 slot) {
-		assert(slot < kMaxTextureSlots);
-		glActiveTexture(GL_TEXTURE0 + slot);
-		glBindTexture(GL_TEXTURE_BUFFER,texture.id);
-	}
-	void Service::bind(Texture1D texture,uint32 slot) {
-		assert(slot < kMaxTextureSlots);
-		glActiveTexture(GL_TEXTURE0 + slot);
-		glBindTexture(GL_TEXTURE_1D,texture.id);
-#ifdef EMULATE_SAMPLER_OBJECTS
-		if(LIKELY_FALSE(samplerEmulationBuffer.size() != 0)) 
-			bindTextureToSampler(GL_TEXTURE_1D,samplerEmulationBuffer,texture.id,(EmulatedSamplerObject*)objectEmulationBuffer.toPointer(samplerEmulationSlots[slot]));
-#endif 
-	}
-	void Service::bind(Texture2D texture,uint32 slot) {
-		assert(slot < kMaxTextureSlots);
-		glActiveTexture(GL_TEXTURE0 + slot);
-		glBindTexture(GL_TEXTURE_2D,texture.id);
-#ifdef EMULATE_SAMPLER_OBJECTS
-		if(LIKELY_FALSE(samplerEmulationBuffer.size() != 0)) 
-			bindTextureToSampler(GL_TEXTURE_2D,samplerEmulationBuffer,texture.id,(EmulatedSamplerObject*)objectEmulationBuffer.toPointer(samplerEmulationSlots[slot]));
-#endif 
-	}
-	void Service::bind(Texture2DArray texture,uint32 slot) {
-		assert(slot < kMaxTextureSlots);
-		glActiveTexture(GL_TEXTURE0 + slot);
-		glBindTexture(GL_TEXTURE_2D_ARRAY,texture.id);
-#ifdef EMULATE_SAMPLER_OBJECTS
-		if(LIKELY_FALSE(samplerEmulationBuffer.size() != 0)) 
-			bindTextureToSampler(GL_TEXTURE_2D_ARRAY,samplerEmulationBuffer,texture.id,(EmulatedSamplerObject*)objectEmulationBuffer.toPointer(samplerEmulationSlots[slot]));
-#endif 
-	}
-	void Service::bind(Texture3D texture,uint32 slot) {
-		assert(slot < kMaxTextureSlots);
-		glActiveTexture(GL_TEXTURE0 + slot);
-		glBindTexture(GL_TEXTURE_3D,texture.id);
-#ifdef EMULATE_SAMPLER_OBJECTS
-		if(LIKELY_FALSE(samplerEmulationBuffer.size() != 0)) 
-			bindTextureToSampler(GL_TEXTURE_3D,samplerEmulationBuffer,texture.id,(EmulatedSamplerObject*)objectEmulationBuffer.toPointer(samplerEmulationSlots[slot]));
-#endif 
-	}
-	void Service::bind(Sampler sampler,uint32 slot) {
-		assert(slot < kMaxTextureSlots);
-#ifdef EMULATE_SAMPLER_OBJECTS
-		samplerEmulationSlots[slot] = sampler.id;
-#endif
-	}
-
 	bool Service::verify(const texture::Descriptor2D& descriptor) {
-#ifdef PLATFORM_RENDERING_GLES
+#ifdef ARPHEG_RENDERING_GLES
 		//TODO: re-enable?
 		//NB: GLES 2 specification: for non-power of 2 textures, mipmapping and other modes than clamping aren't supported
 		//unless an OES_texture_npot is present
@@ -178,23 +130,28 @@ namespace rendering {
 #endif
 		return true;
 	}
-	static GLint textureFormat(uint32 format,GLint& type){
+	static GLint textureFormat(uint32 format,GLint& internalFormat,GLint& type){
 		using namespace texture;
 		GLint result;
 		switch(format){
-		case R_8:    result = GL_RED; type = GL_UNSIGNED_BYTE; break;
-		case RG_88:   result = GL_RG;type = GL_UNSIGNED_BYTE; break;
-		case RGB_888: result = GL_RGB; type = GL_UNSIGNED_BYTE; break;
-		case RGBA_8888: result = GL_RGBA; type = GL_UNSIGNED_BYTE; break;
-		case UINT_RG_1616: result = GL_RG16UI; type = GL_UNSIGNED_SHORT; break;
-		case UINT_RGB_161616: result = GL_RGB16UI; type = GL_UNSIGNED_SHORT; break;
-		case UINT_RGBA_16161616: result = GL_RGBA16UI;  type = GL_UNSIGNED_SHORT;break;
+		case R_8:    result = GL_RED; internalFormat = GL_RED; type = GL_UNSIGNED_BYTE; break;
+		case RG_88:   result = GL_RG; internalFormat = GL_RG;type = GL_UNSIGNED_BYTE; break;
+		case RGB_888: result = GL_RGB;internalFormat = GL_RGB; type = GL_UNSIGNED_BYTE; break;
+		case RGBA_8888: result = GL_RGBA; internalFormat = GL_RGBA; type = GL_UNSIGNED_BYTE; break;
+		case UINT_RG_1616: result = GL_RG; internalFormat = GL_RG16UI; type = GL_UNSIGNED_SHORT; break;
+		case UINT_RGB_161616:result = GL_RGB; internalFormat = GL_RGB16UI; type = GL_UNSIGNED_SHORT; break;
+		case UINT_RGBA_16161616:result = GL_RGBA; internalFormat = GL_RGBA16UI;  type = GL_UNSIGNED_SHORT;break;
+		case FLOAT_R_32: result = GL_RED; internalFormat = GL_R32F; type = GL_FLOAT; break;
+		case FLOAT_RG_3232: result = GL_RG;  internalFormat = GL_RG32F; type = GL_FLOAT; break;
+		case FLOAT_RGB_323232: result = GL_RGB; internalFormat = GL_RGB32F; type = GL_FLOAT; break;
+		case FLOAT_RGBA_32323232: result = GL_RGBA;  internalFormat = GL_RGBA32F; type = GL_FLOAT; break;
 		}
 		return result;
 	}
+	//NB: check https://groups.google.com/forum/?fromgroups=#!topic/mac-opengl/ZSUKqH4RPTA
 	Texture2D Service::create(const texture::Descriptor2D& descriptor,const void* texels) {
 		verify(descriptor);
-		Texture2D texture;
+		Texture2D texture={0,GL_TEXTURE_2D};
 		CHECK_GL(glGenTextures(1,&texture.id));
 		assert(texture.id!=0);
 		CHECK_GL(glBindTexture(GL_TEXTURE_2D, texture.id));
@@ -203,38 +160,14 @@ namespace rendering {
 		((EmulatedSamplerObject*)objectEmulationBuffer.toPointer(samplerEmulationDefault))->bind(GL_TEXTURE_2D);
 		if(!rt) markTextureNoSamplerBound(samplerEmulationBuffer,texture.id);
 #endif		
-		GLint type;
-		GLint format = textureFormat(descriptor.format,type);
-		CHECK_GL(glTexImage2D(GL_TEXTURE_2D, 0,format, descriptor.width, descriptor.height, 0, format, type, texels));
+		GLint internalFormat,type;
+		GLint format = textureFormat(descriptor.format,internalFormat,type);
+		CHECK_GL(glTexImage2D(GL_TEXTURE_2D, 0,internalFormat, descriptor.width, descriptor.height, 0, format, type, texels));
 		return texture;
 	}
-	void Service::load(Texture2D destination,vec2i offset,const texture::Descriptor2D& descriptor,void* texels) {
-		assert(texels);
-		assert(destination.id!=0);
-		CHECK_GL(glBindTexture(GL_TEXTURE_2D, destination.id));
-		GLint type;
-		GLint format = textureFormat(descriptor.format,type);
-		CHECK_GL(glTexSubImage2D(GL_TEXTURE_2D, 0, offset.x,offset.y,descriptor.width,descriptor.height, format, type, texels));
-	}
-	void Service::resize(Texture2D texture,texture::Descriptor2D& descriptor) {
-		assert(texture.id!=0);
-		CHECK_GL(glBindTexture(GL_TEXTURE_2D, texture.id));
-		GLint type;
-		GLint format = textureFormat(descriptor.format,type);
-		CHECK_GL(glTexImage2D(GL_TEXTURE_2D, 0, format,descriptor.width,descriptor.height, 0,format, type,nullptr));
-	}
-	void Service::release(Texture2D texture){
-		assert(texture.id!=0);
-		CHECK_GL(glDeleteTextures(1,&texture.id));
-#ifdef EMULATE_SAMPLER_OBJECTS
-		if(LIKELY_FALSE(samplerEmulationBuffer.size() != 0))
-			textureReleased(samplerEmulationBuffer,texture.id);
-#endif
-	}
-
 	Texture2DArray Service::create(const texture::Descriptor2D& descriptor,int numLayers,const void* texels) {
 		verify(descriptor);
-		Texture2DArray texture;
+		Texture2DArray texture={0,GL_TEXTURE_2D_ARRAY};
 		CHECK_GL(glGenTextures(1,&texture.id));
 		assert(texture.id!=0);
 		CHECK_GL(glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id));
@@ -242,39 +175,23 @@ namespace rendering {
 		((EmulatedSamplerObject*)objectEmulationBuffer.toPointer(samplerEmulationDefault))->bind(GL_TEXTURE_2D_ARRAY);
 		markTextureNoSamplerBound(samplerEmulationBuffer,texture.id);
 #endif		
-		GLint type; GLint format = textureFormat(descriptor.format,type);
-		CHECK_GL(glTexImage3D(GL_TEXTURE_2D_ARRAY, 0,format, descriptor.width, descriptor.height, numLayers, 0, format, type, texels));
+		GLint internalFormat,type;
+		GLint format = textureFormat(descriptor.format,internalFormat,type);
+		CHECK_GL(glTexImage3D(GL_TEXTURE_2D_ARRAY, 0,internalFormat, descriptor.width, descriptor.height, numLayers, 0, format, type, texels));
 		return texture;
 	}
-	void Service::generateMipmaps(Texture2DArray texture) {
-		//glBindTexture(GL
-		glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
-	}
-	void Service::release(Texture2DArray texture){
-		assert(texture.id!=0);
-		CHECK_GL(glDeleteTextures(1,&texture.id));
-#ifdef EMULATE_SAMPLER_OBJECTS
-		if(LIKELY_FALSE(samplerEmulationBuffer.size() != 0))
-			textureReleased(samplerEmulationBuffer,texture.id);
-#endif
-	}
-
 	TextureBuffer Service::create(uint32 format,Buffer buffer) {
-		TextureBuffer texture;
+		TextureBuffer texture={0,GL_TEXTURE_BUFFER};
 		CHECK_GL(glGenTextures(1,&texture.id));
 		assert(texture.id!=0);
-		GLint type; GLint fmt = textureFormat(format,type);
+		GLint internalFormat,type;
+		GLint fmt = textureFormat(format,internalFormat,type);
 		CHECK_GL(glBindTexture(GL_TEXTURE_BUFFER, texture.id));
 		glTexBuffer(GL_TEXTURE_BUFFER,fmt,buffer.id);
 		return texture;
 	}
-	void Service::release(TextureBuffer texture){
-		assert(texture.id!=0);
-		CHECK_GL(glDeleteTextures(1,&texture.id));
-	}
-
 	Texture1D Service::create(const texture::Descriptor1D& descriptor,const void* texels) {
-		Texture1D texture;
+		Texture1D texture={0,GL_TEXTURE_1D};
 		CHECK_GL(glGenTextures(1,&texture.id));
 		assert(texture.id!=0);
 		CHECK_GL(glBindTexture(GL_TEXTURE_1D, texture.id));
@@ -282,21 +199,13 @@ namespace rendering {
 		((EmulatedSamplerObject*)objectEmulationBuffer.toPointer(samplerEmulationDefault))->bind(GL_TEXTURE_1D);
 		markTextureNoSamplerBound(samplerEmulationBuffer,texture.id);
 #endif		
-		GLint type; GLint format = textureFormat(descriptor.format,type);
-		CHECK_GL(glTexImage1D(GL_TEXTURE_1D, 0,format, descriptor.size, 0, format, type, texels));
+		GLint internalFormat,type;
+		GLint format = textureFormat(descriptor.format,internalFormat,type);
+		CHECK_GL(glTexImage1D(GL_TEXTURE_1D, 0,internalFormat, descriptor.size, 0, format, type, texels));
 		return texture;
 	}
-	void Service::release(Texture1D texture){
-		assert(texture.id!=0);
-		CHECK_GL(glDeleteTextures(1,&texture.id));
-#ifdef EMULATE_SAMPLER_OBJECTS
-		if(LIKELY_FALSE(samplerEmulationBuffer.size() != 0))
-			textureReleased(samplerEmulationBuffer,texture.id);
-#endif
-	}
-
 	Texture3D Service::create(const texture::Descriptor3D& descriptor,const void* texels) {
-		Texture3D texture;
+		Texture3D texture={0,GL_TEXTURE_3D};
 		CHECK_GL(glGenTextures(1,&texture.id));
 		assert(texture.id!=0);
 		CHECK_GL(glBindTexture(GL_TEXTURE_3D, texture.id));
@@ -304,25 +213,71 @@ namespace rendering {
 		((EmulatedSamplerObject*)objectEmulationBuffer.toPointer(samplerEmulationDefault))->bind(GL_TEXTURE_3D);
 		markTextureNoSamplerBound(samplerEmulationBuffer,texture.id);
 #endif		
-		GLint type;
-		GLint format = textureFormat(descriptor.format,type);
-		CHECK_GL(glTexImage3D(GL_TEXTURE_3D, 0,format, descriptor.width, descriptor.height,descriptor.length, 0, GL_RG, type, texels));
+		GLint internalFormat,type;
+		GLint format = textureFormat(descriptor.format,internalFormat,type);
+		CHECK_GL(glTexImage3D(GL_TEXTURE_3D, 0,internalFormat, descriptor.width, descriptor.height,descriptor.length, 0, GL_RG, type, texels));
 		return texture;
 	}
-	void Service::load(Texture3D destination,const texture::Descriptor3D& descriptor,void* texels) {
+
+	void Service::load(Texture2D destination,vec2i offset,const texture::Descriptor2D& descriptor,void* texels){
 		assert(texels);
 		assert(destination.id!=0);
+		//assert(destination.type == GL_TEXTURE_2D);
+
+		CHECK_GL(glBindTexture(GL_TEXTURE_2D, destination.id));
+		GLint internalFormat,type;
+		GLint format = textureFormat(descriptor.format,internalFormat,type);
+		CHECK_GL(glTexSubImage2D(GL_TEXTURE_2D, 0, offset.x,offset.y,descriptor.width,descriptor.height, format, type, texels));
+	}
+	void Service::load(Texture3D destination,const texture::Descriptor3D& descriptor,void* texels){
+		assert(texels);
+		assert(destination.id!=0);
+		//assert(destination.type == GL_TEXTURE_3D || destination.type == GL_TEXTURE_2D_ARRAY);
+
 		CHECK_GL(glBindTexture(GL_TEXTURE_3D, destination.id));
-		GLint type;
-		GLint format = textureFormat(descriptor.format,type);
+		GLint internalFormat,type;
+		GLint format = textureFormat(descriptor.format,internalFormat,type);
 		CHECK_GL(glTexSubImage3D(GL_TEXTURE_3D, 0, 0,0,0 ,descriptor.width,descriptor.height,descriptor.length, GL_RG, type, texels));
 	}
-	void Service::release(Texture3D texture){
+	void Service::resize(Texture2D texture,const texture::Descriptor2D& descriptor){
 		assert(texture.id!=0);
-		CHECK_GL(glDeleteTextures(1,&texture.id));
+
+		CHECK_GL(glBindTexture(GL_TEXTURE_2D, texture.id));
+		GLint internalFormat,type;
+		GLint format = textureFormat(descriptor.format,internalFormat,type);
+		CHECK_GL(glTexImage2D(GL_TEXTURE_2D, 0, internalFormat,descriptor.width,descriptor.height, 0,format, type,nullptr));
+	}
+
+	void Service::generateMipmaps(const Texture2D* texture){
+		assert(texture->type == GL_TEXTURE_2D || texture->type == GL_TEXTURE_2D_ARRAY);
+		glBindTexture(texture->type,texture->id);
+		CHECK_GL(glGenerateMipmap(texture->type));
+	}
+	void Service::release(const Texture2D* texture){
+		assert(texture->id!=0);
+		CHECK_GL(glDeleteTextures(1,&texture->id));
 #ifdef EMULATE_SAMPLER_OBJECTS
+		if(texture->type == GL_TEXTURE_BUFFER) return;
 		if(LIKELY_FALSE(samplerEmulationBuffer.size() != 0))
-			textureReleased(samplerEmulationBuffer,texture.id);
+			textureReleased(samplerEmulationBuffer,texture->id);
+#endif
+	}
+	void Service::bind(const Texture2D* texture,uint32 slot = 0){
+		assert(slot < kMaxTextureSlots);
+		glActiveTexture(GL_TEXTURE0 + slot);
+		glBindTexture(texture->type,texture->id);
+		
+#ifdef EMULATE_SAMPLER_OBJECTS
+		if(texture->type == GL_TEXTURE_BUFFER) return;
+
+		if(LIKELY_FALSE(samplerEmulationBuffer.size() != 0)) 
+			bindTextureToSampler(texture->type,samplerEmulationBuffer,texture->id,(EmulatedSamplerObject*)objectEmulationBuffer.toPointer(samplerEmulationSlots[slot]));
+#endif 
+	}
+	void Service::bind(Sampler sampler,uint32 slot) {
+		assert(slot < kMaxTextureSlots);
+#ifdef EMULATE_SAMPLER_OBJECTS
+		samplerEmulationSlots[slot] = sampler.id;
 #endif
 	}
 

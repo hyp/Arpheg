@@ -138,3 +138,29 @@ mat44f mat44f::translateRotateScale2D(const mat44f& projectionView,vec2f transla
 	matrixMultiply(projectionView,model,result);
 	return result;
 }
+mat44f mat44f::rotate(const Quaternion& rotation) {
+	//TODO: Can be done with 2 sse muls..
+	vec4f vv = rotation.v() * rotation.v();
+
+	float xy = rotation.x*rotation.y;
+	float xz = rotation.x*rotation.z;
+	float xw = rotation.x*rotation.w;
+
+	float yz = rotation.y*rotation.z;
+	float yw = rotation.y*rotation.w;
+	float zw = rotation.z*rotation.w;
+
+#ifdef PLATFORM_MATH_MAT_ROWMAJOR
+	return mat44f(
+		vec4f(1.0 - 2.0*(vv.y + vv.z),2.0*(xy - zw),2.0*(xz + yw),0.0),
+		vec4f(2.0*(xy + zw),1.0 - 2.0*(vv.x + vv.z),2.0*(yz - xw),0.0),
+		vec4f(2.0*(xz - yw),2.0*(yz+xw),1.0 - 2.0*(vv.z + vv.y)  ,0.0),
+		vec4f(0.0,0.0,0.0,1.0f) );
+#else
+	return mat44f(
+		vec4f(1.0f - 2.0f*(vv.y + vv.z),2.0f*(xy - zw),2.0f*(xz + yw),0.0f),
+		vec4f(2.0f*(xy + zw),1.0f - 2.0f*(vv.x + vv.z),2.0f*(yz - xw),0.0f),
+		vec4f(2.0f*(xz - yw),2.0f*(yz+xw),1.0f - 2.0f*(vv.z + vv.y)  ,0.0f),
+		vec4f(0.0f,0.0f,0.0f,1.0f) );
+#endif
+}

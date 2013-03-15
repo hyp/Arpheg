@@ -1,6 +1,5 @@
 #include "../../src/arpheg.h"
 #include "../../src/services.h"
-#include "../../src/rendering/opengl/gl.h"
 
 int main(){
 	services::init();
@@ -10,6 +9,8 @@ int main(){
 	vec3f verts[] = {vec3f(-0.5,-0.5,0.0),vec3f(0.0,0.5,0.0),vec3f(0.5,-0.5,0.0)};
 
 	auto vbo = renderer->create(rendering::Buffer::Vertex,false,sizeof(verts),verts);
+	rendering::Buffer ibo;ibo.makeNull();
+	auto triangle = renderer->create(vbo,ibo,rendering::VertexDescriptor::positionAs3Float());
 	
 	auto vsh = renderer->create(rendering::Shader::Vertex,""
 		"#version 130\n"
@@ -26,7 +27,12 @@ int main(){
 		"    fragment = vec3(0.2);\n"
 		"}\n"
 	);
-	auto program = renderer->create(rendering::VertexDescriptor::positionAs3Float(),vsh,fsh);
+	rendering::Shader shaders[2] = {vsh,fsh};
+	rendering::Pipeline::GLSLLayout layout;
+	layout.vertexAttributeCount = 1;
+	const char* va[] = {"position"};
+	layout.vertexAttributes = va;
+	auto program = renderer->create(shaders,2,layout);
 
 	rendering::Pipeline::Constant mvp("mvp");
 
@@ -42,8 +48,7 @@ int main(){
 		mat44f projection = mat44f::perspective(math::pi/2,float(viewport.size.x)/float(viewport.size.y),0.1,1000.0);
 		mat44f view = mat44f::identity();
 		renderer->bind(mvp,mat44f::identity());
-		renderer->bindVertices(vbo);
-		renderer->bind(rendering::topology::Triangle);
+		renderer->bind(triangle);
 		renderer->draw(0,3);
 
 		services::rendering()->context()->swapBuffers();

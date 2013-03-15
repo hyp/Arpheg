@@ -5,6 +5,6 @@ macro (sample name)
 	target_link_libraries(${name}sample ${ARPHEG_LIBS})
 endmacro(sample)
 
-sample(gl)
+sample(application)
 sample(triangle)
 sample(resources)

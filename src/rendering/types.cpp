@@ -2,26 +2,39 @@
 #include "types.h"
 
 namespace rendering {
+namespace blending {
+	State disabled() {
+		return State();
+	}
+	State alpha(){
+		return State(SrcAlpha,InvertedSrcAlpha);
+	}
+	State premultipliedAlpha(){
+		return State(One,InvertedSrcAlpha);
+	}
+}
 
 	//Provide descriptors for some common vertex formats
-	CoreTypeDescriptor positionAs2Float[1] = { { CoreTypeDescriptor::TFloat,2 } };
-	CoreTypeDescriptor positionAs3Float[1] = { { CoreTypeDescriptor::TFloat,3 } };
-	CoreTypeDescriptor positionAs4Float[1] = { { CoreTypeDescriptor::TFloat,4 } };
-	CoreTypeDescriptor positionAs2Float_texcoordAs2Float[2] = { { CoreTypeDescriptor::TFloat,2 } , { CoreTypeDescriptor::TFloat,2 } };
-	CoreTypeDescriptor positionAs3Float_texcoordAs2Float[2] = { { CoreTypeDescriptor::TFloat,3 } , { CoreTypeDescriptor::TFloat,2 } };
-	CoreTypeDescriptor positionAs2Float_texcoordAs2Float_colourAs4Bytes[3] = { 
-		{ CoreTypeDescriptor::TFloat,2 } , { CoreTypeDescriptor::TFloat,2 } , { CoreTypeDescriptor::TUint8,4 } };
-	CoreTypeDescriptor positionAs3Float_normalAs3Float[2] = { { CoreTypeDescriptor::TFloat,3 } , { CoreTypeDescriptor::TFloat,3 } };
-	CoreTypeDescriptor positionAs4Float_normalAs4Float[2] = { { CoreTypeDescriptor::TFloat,4 } , { CoreTypeDescriptor::TFloat,4 } };
+	core::TypeDescriptor positionAs2Float[1] = { { core::TypeDescriptor::TFloat,2 } };
+	core::TypeDescriptor positionAs3Float[1] = { { core::TypeDescriptor::TFloat,3 } };
+	core::TypeDescriptor positionAs4Float[1] = { { core::TypeDescriptor::TFloat,4 } };
+	core::TypeDescriptor positionAs2Float_texcoordAs2Float[2] = { { core::TypeDescriptor::TFloat,2 } , { core::TypeDescriptor::TFloat,2 } };
+	core::TypeDescriptor positionAs3Float_texcoordAs2Float[2] = { { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,2 } };
+	core::TypeDescriptor positionAs2Float_texcoordAs2Float_colourAs4Bytes[3] = { 
+		{ core::TypeDescriptor::TFloat,2 } , { core::TypeDescriptor::TFloat,2 } , { core::TypeDescriptor::TUint8,4 } };
+	core::TypeDescriptor positionAs3Float_normalAs3Float[2] = { { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,3 } };
+	core::TypeDescriptor positionAs4Float_normalAs4Float[2] = { { core::TypeDescriptor::TFloat,4 } , { core::TypeDescriptor::TFloat,4 } };
+	core::TypeDescriptor positionAs3Float_normalAs3Float_texcoordAs2Float[3] = { { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,2 } };
 
 	const char* posSlots[]   = { "position" };
 	const char* posUvSlots[] = { "position","texcoord" };
 	const char* posNSlots[]  = { "position","normal" };
+	const char* posNUVSlots[] = { "position","normal","texcoord" };
 	const char* posUvColSlots[] = { "position","texcoord","colour" };
 
 #define ImplCommonDescriptor(fields,slots) \
 	VertexDescriptor VertexDescriptor::fields() { \
-		VertexDescriptor result = { ::rendering:: fields,sizeof( ::rendering:: fields)/sizeof(CoreTypeDescriptor),slots }; \
+		VertexDescriptor result = { ::rendering:: fields,sizeof( ::rendering:: fields)/sizeof(core::TypeDescriptor),slots }; \
 		return result; \
 	}
 
@@ -32,5 +45,8 @@ namespace rendering {
 	ImplCommonDescriptor(positionAs3Float_texcoordAs2Float,posUvSlots)
 	ImplCommonDescriptor(positionAs2Float_texcoordAs2Float_colourAs4Bytes,posUvColSlots)
 	ImplCommonDescriptor(positionAs3Float_normalAs3Float,posNSlots)
+	ImplCommonDescriptor(positionAs3Float_normalAs3Float_texcoordAs2Float,posNUVSlots)
 	ImplCommonDescriptor(positionAs4Float_normalAs4Float,posNSlots)
+
+#undef ImplCommonDescriptor
 }

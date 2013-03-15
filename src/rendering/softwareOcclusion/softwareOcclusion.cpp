@@ -1,3 +1,5 @@
+//Thanks to fgiesen.wordpress.com and Intel for the occlusion culling demo.
+
 #include "../../core/memory.h"
 #include "../../core/assert.h"
 #include "../../core/bufferStringStream.h"
@@ -824,7 +826,7 @@ void DepthBuffer::rasterizeTile(int32 x,int32 y,uint32 pass) {
 	
 			int32 idx2  = minx-tilePos.x + (miny - tilePos.y)*tileSize_.x;
 			int32 spanx = maxx-minx;
-			//float depthInc = float(a1)*zz[1] + float(a2)*zz[2];
+
 	
 			for(int32 endIdx2 = idx2+(tileSize_.x)*(maxy-miny);idx2<=endIdx2;idx2+=tileSize_.x){
 				auto w0 = w0_row;
@@ -847,7 +849,6 @@ void DepthBuffer::rasterizeTile(int32 x,int32 y,uint32 pass) {
 					w0+=a0;
 					w1+=a1;
 					w2+=a2;
-					//depth+=depthInc;
 				}
 				w0_row += b0;
 				w1_row += b1;
@@ -963,8 +964,6 @@ void DepthBuffer::rasterizeTile2x2(int32 x,int32 y,uint32 pass) {
 
 			VecF32 zInc = itof(a1)*zz[1] + itof(a2)*zz[2];
 	
-			//int32 idx2  = minx-tilePos.x + (miny - tilePos.y)*tileSize_.x;
-			//int32 spanx = maxx-minx;
 			for(int32 y = miny;y<=maxy;y+=2,rowIdx += 2 * size_.x){
 				auto w0 = w0_row;
 				auto w1 = w1_row;

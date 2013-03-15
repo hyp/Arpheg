@@ -1,4 +1,5 @@
 #include "../../services.h"
+#include "../../core/bufferStringStream.h"
 #include "gl.h"
 
 #ifdef ARPHEG_PLATFORM_WIN32
@@ -7,17 +8,23 @@
 struct Loader {
 	int major,minor;
 	void (*onError)(const char*);
+	core::bufferStringStream::Formatter formatter;
 	
 	void* load(const char* name){
 #ifdef ARPHEG_PLATFORM_WIN32
 		void* proc = (void*)wglGetProcAddress(name);
 #endif
-		if(!proc) services::logging()->warning(name);
-		//log(format("%s %s") %  name % (proc ? "supported" : "not supported"));
+		if(!proc){
+			formatter.allocator.reset();
+			core::bufferStringStream::printf(formatter,"Failed to load OpenGL core function '%s' - the application may not behave correctly!\n  Please update your graphics card's drivers.",name);
+			services::logging()->warning(core::bufferStringStream::asCString(formatter));
+		}
 		if(!proc && onError) onError(name);
 		return proc;
 	}
 };
+
+#define F(f,T) f = (T) loader.load(#f);
 
 void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
 	Loader loader;
@@ -25,13 +32,8 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
     loader.minor = version % 10;
 	loader.onError = onError;
 
-   // log(format("Loading OpenGL %d.%d functions...\n--------------------------------------------------\n") % (version / 10) % (version % 10));
-/*#ifndef _WIN32
+/*#ifndef ARPHEG_PLATFORM_WIN32
     if (version >= 10) {
-        printf(
-            "--------------------------------------------------\n"
-            "OpenGL 1.0 commands\n"
-            "--------------------------------------------------\n");
         glCullFace = (PFNGLCULLFACEPROC) loader.load("glCullFace");
         glFrontFace = (PFNGLFRONTFACEPROC) loader.load("glFrontFace");
         glHint = (PFNGLHINTPROC) loader.load("glHint");
@@ -82,10 +84,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glViewport = (PFNGLVIEWPORTPROC) loader.load("glViewport");
     }
     if (version >= 11) {
-        printf(
-            "--------------------------------------------------\n"
-            "OpenGL 1.1 commands\n"
-            "--------------------------------------------------\n");
         glDrawArrays = (PFNGLDRAWARRAYSPROC) loader.load("glDrawArrays");
         glDrawElements = (PFNGLDRAWELEMENTSPROC) loader.load("glDrawElements");
         glGetPointerv = (PFNGLGETPOINTERVPROC) loader.load("glGetPointerv");
@@ -103,7 +101,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
     }
 #endif*/
     if (version >= 12) {
-        //log("[OpenGL 1.2]");
         glBlendColor = (PFNGLBLENDCOLORPROC) loader.load("glBlendColor");
         glBlendEquation = (PFNGLBLENDEQUATIONPROC) loader.load("glBlendEquation");
         glDrawRangeElements = (PFNGLDRAWRANGEELEMENTSPROC) loader.load("glDrawRangeElements");
@@ -112,7 +109,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glCopyTexSubImage3D = (PFNGLCOPYTEXSUBIMAGE3DPROC) loader.load("glCopyTexSubImage3D");
     }
     if (version >= 13) {
-        //log("[OpenGL 1.3]");
         glActiveTexture = (PFNGLACTIVETEXTUREPROC) loader.load("glActiveTexture");
         glSampleCoverage = (PFNGLSAMPLECOVERAGEPROC) loader.load("glSampleCoverage");
         glCompressedTexImage3D = (PFNGLCOMPRESSEDTEXIMAGE3DPROC) loader.load("glCompressedTexImage3D");
@@ -124,7 +120,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glGetCompressedTexImage = (PFNGLGETCOMPRESSEDTEXIMAGEPROC) loader.load("glGetCompressedTexImage");
     }
     if (version >= 14) {
-        //log("[OpenGL 1.4]");
         glBlendFuncSeparate = (PFNGLBLENDFUNCSEPARATEPROC) loader.load("glBlendFuncSeparate");
         glMultiDrawArrays = (PFNGLMULTIDRAWARRAYSPROC) loader.load("glMultiDrawArrays");
         glMultiDrawElements = (PFNGLMULTIDRAWELEMENTSPROC) loader.load("glMultiDrawElements");
@@ -134,7 +129,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glPointParameteriv = (PFNGLPOINTPARAMETERIVPROC) loader.load("glPointParameteriv");
     }
     if (version >= 15) {
-        //log("[OpenGL 1.5]");
         glGenQueries = (PFNGLGENQUERIESPROC) loader.load("glGenQueries");
         glDeleteQueries = (PFNGLDELETEQUERIESPROC) loader.load("glDeleteQueries");
         glIsQuery = (PFNGLISQUERYPROC) loader.load("glIsQuery");
@@ -156,7 +150,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glGetBufferPointerv = (PFNGLGETBUFFERPOINTERVPROC) loader.load("glGetBufferPointerv");
     }
     if (version >= 20) {
-        //log("[OpenGL 2.0]");
         glBlendEquationSeparate = (PFNGLBLENDEQUATIONSEPARATEPROC) loader.load("glBlendEquationSeparate");
         glDrawBuffers = (PFNGLDRAWBUFFERSPROC) loader.load("glDrawBuffers");
         glStencilOpSeparate = (PFNGLSTENCILOPSEPARATEPROC) loader.load("glStencilOpSeparate");
@@ -252,7 +245,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glVertexAttribPointer = (PFNGLVERTEXATTRIBPOINTERPROC) loader.load("glVertexAttribPointer");
     }
     if (version >= 21) {
-       // log("[OpenGL 2.1]");
         glUniformMatrix2x3fv = (PFNGLUNIFORMMATRIX2X3FVPROC) loader.load("glUniformMatrix2x3fv");
         glUniformMatrix3x2fv = (PFNGLUNIFORMMATRIX3X2FVPROC) loader.load("glUniformMatrix3x2fv");
         glUniformMatrix2x4fv = (PFNGLUNIFORMMATRIX2X4FVPROC) loader.load("glUniformMatrix2x4fv");
@@ -261,7 +253,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glUniformMatrix4x3fv = (PFNGLUNIFORMMATRIX4X3FVPROC) loader.load("glUniformMatrix4x3fv");
     }
     if (version >= 30) {
-       // log("[OpenGL 3.0]");
         glColorMaski = (PFNGLCOLORMASKIPROC) loader.load("glColorMaski");
         glGetBooleani_v = (PFNGLGETBOOLEANI_VPROC) loader.load("glGetBooleani_v");
         glGetIntegeri_v = (PFNGLGETINTEGERI_VPROC) loader.load("glGetIntegeri_v");
@@ -348,7 +339,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glIsVertexArray = (PFNGLISVERTEXARRAYPROC) loader.load("glIsVertexArray");
     }
     if (version >= 31) {
-        //log("[OpenGL 3.1]");
         glDrawArraysInstanced = (PFNGLDRAWARRAYSINSTANCEDPROC) loader.load("glDrawArraysInstanced");
         glDrawElementsInstanced = (PFNGLDRAWELEMENTSINSTANCEDPROC) loader.load("glDrawElementsInstanced");
         glTexBuffer = (PFNGLTEXBUFFERPROC) loader.load("glTexBuffer");
@@ -363,7 +353,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glCopyBufferSubData = (PFNGLCOPYBUFFERSUBDATAPROC) loader.load("glCopyBufferSubData");
     }
     if (version >= 32) {
-        //log("[OpenGL 3.2]");
         glGetInteger64i_v = (PFNGLGETINTEGER64I_VPROC) loader.load("glGetInteger64i_v");
         glGetBufferParameteri64v = (PFNGLGETBUFFERPARAMETERI64VPROC) loader.load("glGetBufferParameteri64v");
         glFramebufferTexture = (PFNGLFRAMEBUFFERTEXTUREPROC) loader.load("glFramebufferTexture");
@@ -385,7 +374,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glSampleMaski = (PFNGLSAMPLEMASKIPROC) loader.load("glSampleMaski");
     }
     if (version >= 33) {
-        //log("[OpenGL 3.3]");
         glVertexAttribDivisor = (PFNGLVERTEXATTRIBDIVISORPROC) loader.load("glVertexAttribDivisor");
         glBindFragDataLocationIndexed = (PFNGLBINDFRAGDATALOCATIONINDEXEDPROC) loader.load("glBindFragDataLocationIndexed");
         glGetFragDataIndex = (PFNGLGETFRAGDATAINDEXPROC) loader.load("glGetFragDataIndex");
@@ -446,7 +434,6 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glVertexAttribP4uiv = (PFNGLVERTEXATTRIBP4UIVPROC) loader.load("glVertexAttribP4uiv");
     }
     if (version >= 40) {
-        //log("[OpenGL 4.0]");
         glMinSampleShading = (PFNGLMINSAMPLESHADINGPROC) loader.load("glMinSampleShading");
         glBlendEquationi = (PFNGLBLENDEQUATIONIPROC) loader.load("glBlendEquationi");
         glBlendEquationSeparatei = (PFNGLBLENDEQUATIONSEPARATEIPROC) loader.load("glBlendEquationSeparatei");
@@ -494,21 +481,7 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glEndQueryIndexed = (PFNGLENDQUERYINDEXEDPROC) loader.load("glEndQueryIndexed");
         glGetQueryIndexediv = (PFNGLGETQUERYINDEXEDIVPROC) loader.load("glGetQueryIndexediv");
     }
-    /*
-    glBlendEquationiARB = (PFNGLBLENDEQUATIONIARBPROC) loader.load("glBlendEquationiARB");
-    glBlendEquationSeparateiARB = (PFNGLBLENDEQUATIONSEPARATEIARBPROC) loader.load("glBlendEquationSeparateiARB");
-    glBlendFunciARB = (PFNGLBLENDFUNCIARBPROC) loader.load("glBlendFunciARB");
-    glBlendFuncSeparateiARB = (PFNGLBLENDFUNCSEPARATEIARBPROC) loader.load("glBlendFuncSeparateiARB");
-    glMinSampleShadingARB = (PFNGLMINSAMPLESHADINGARBPROC) loader.load("glMinSampleShadingARB");
-    glNamedStringARB = (PFNGLNAMEDSTRINGARBPROC) loader.load("glNamedStringARB");
-    glDeleteNamedStringARB = (PFNGLDELETENAMEDSTRINGARBPROC) loader.load("glDeleteNamedStringARB");
-    glCompileShaderIncludeARB = (PFNGLCOMPILESHADERINCLUDEARBPROC) loader.load("glCompileShaderIncludeARB");
-    glIsNamedStringARB = (PFNGLISNAMEDSTRINGARBPROC) loader.load("glIsNamedStringARB");
-    glGetNamedStringARB = (PFNGLGETNAMEDSTRINGARBPROC) loader.load("glGetNamedStringARB");
-    glGetNamedStringivARB = (PFNGLGETNAMEDSTRINGIVARBPROC) loader.load("glGetNamedStringivARB");
-    */
     if (version >= 41) {
-        //log("[OpenGL 4.1]");
         glReleaseShaderCompiler = (PFNGLRELEASESHADERCOMPILERPROC) loader.load("glReleaseShaderCompiler");
         glShaderBinary = (PFNGLSHADERBINARYPROC) loader.load("glShaderBinary");
         glGetShaderPrecisionFormat = (PFNGLGETSHADERPRECISIONFORMATPROC) loader.load("glGetShaderPrecisionFormat");
@@ -598,42 +571,18 @@ void rendering::loadOpenGLCore(int version,void (*onError)(const char*)) {
         glGetFloati_v = (PFNGLGETFLOATI_VPROC) loader.load("glGetFloati_v");
         glGetDoublei_v = (PFNGLGETDOUBLEI_VPROC) loader.load("glGetDoublei_v");
     }
-    /*
-    glCreateSyncFromCLeventARB = (PFNGLCREATESYNCFROMCLEVENTARBPROC) loader.load("glCreateSyncFromCLeventARB");
-    glDebugMessageControlARB = (PFNGLDEBUGMESSAGECONTROLARBPROC) loader.load("glDebugMessageControlARB");
-    glDebugMessageInsertARB = (PFNGLDEBUGMESSAGEINSERTARBPROC) loader.load("glDebugMessageInsertARB");
-    glDebugMessageCallbackARB = (PFNGLDEBUGMESSAGECALLBACKARBPROC) loader.load("glDebugMessageCallbackARB");
-    glGetDebugMessageLogARB = (PFNGLGETDEBUGMESSAGELOGARBPROC) loader.load("glGetDebugMessageLogARB");
-    glGetGraphicsResetStatusARB = (PFNGLGETGRAPHICSRESETSTATUSARBPROC) loader.load("glGetGraphicsResetStatusARB");
-    glGetnMapdvARB = (PFNGLGETNMAPDVARBPROC) loader.load("glGetnMapdvARB");
-    glGetnMapfvARB = (PFNGLGETNMAPFVARBPROC) loader.load("glGetnMapfvARB");
-    glGetnMapivARB = (PFNGLGETNMAPIVARBPROC) loader.load("glGetnMapivARB");
-    glGetnPixelMapfvARB = (PFNGLGETNPIXELMAPFVARBPROC) loader.load("glGetnPixelMapfvARB");
-    glGetnPixelMapuivARB = (PFNGLGETNPIXELMAPUIVARBPROC) loader.load("glGetnPixelMapuivARB");
-    glGetnPixelMapusvARB = (PFNGLGETNPIXELMAPUSVARBPROC) loader.load("glGetnPixelMapusvARB");
-    glGetnPolygonStippleARB = (PFNGLGETNPOLYGONSTIPPLEARBPROC) loader.load("glGetnPolygonStippleARB");
-    glGetnColorTableARB = (PFNGLGETNCOLORTABLEARBPROC) loader.load("glGetnColorTableARB");
-    glGetnConvolutionFilterARB = (PFNGLGETNCONVOLUTIONFILTERARBPROC) loader.load("glGetnConvolutionFilterARB");
-    glGetnSeparableFilterARB = (PFNGLGETNSEPARABLEFILTERARBPROC) loader.load("glGetnSeparableFilterARB");
-    glGetnHistogramARB = (PFNGLGETNHISTOGRAMARBPROC) loader.load("glGetnHistogramARB");
-    glGetnMinmaxARB = (PFNGLGETNMINMAXARBPROC) loader.load("glGetnMinmaxARB");
-    glGetnTexImageARB = (PFNGLGETNTEXIMAGEARBPROC) loader.load("glGetnTexImageARB");
-    glReadnPixelsARB = (PFNGLREADNPIXELSARBPROC) loader.load("glReadnPixelsARB");
-    glGetnCompressedTexImageARB = (PFNGLGETNCOMPRESSEDTEXIMAGEARBPROC) loader.load("glGetnCompressedTexImageARB");
-    glGetnUniformfvARB = (PFNGLGETNUNIFORMFVARBPROC) loader.load("glGetnUniformfvARB");
-    glGetnUniformivARB = (PFNGLGETNUNIFORMIVARBPROC) loader.load("glGetnUniformivARB");
-    glGetnUniformuivARB = (PFNGLGETNUNIFORMUIVARBPROC) loader.load("glGetnUniformuivARB");
-    glGetnUniformdvARB = (PFNGLGETNUNIFORMDVARBPROC) loader.load("glGetnUniformdvARB");
-    */
 
-	//log(format("OpenGL %d.%d commands loaded successfully!\n") % (version / 10) % (version % 10));
-	services::logging()->information("OpenGL core was loaded!");
+	loader.formatter.allocator.reset();
+	core::bufferStringStream::printf(loader.formatter,"OpenGL %d.%d core was loaded!",loader.major,loader.minor);
+	services::logging()->information(core::bufferStringStream::asCString(loader.formatter));
 }
+
+#undef F
 
 //opengl functions
 #define extern
 
-#ifndef _WIN32
+#ifndef ARPHEG_PLATFORM_WIN32
 
 /*extern PFNGLCULLFACEPROC glCullFace;
 extern PFNGLFRONTFACEPROC glFrontFace;

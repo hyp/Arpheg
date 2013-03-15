@@ -3,13 +3,14 @@
 #include "../services.h"
 #include "geometryBatcher.h"
 
-namespace rendering{ 
+namespace rendering { 
+
 GeometryBatcher::GeometryBatcher(){
 	vertexSize = 0;
 	vertexBufferSize = 0;
 	buffer = bufferEnd = bufferReset = nullptr;
 }
-void GeometryBatcher::initialize() {
+void GeometryBatcher::initialize(const VertexDescriptor& vertexLayout) {
 	auto renderer = services::rendering();
 	uint32 maxQuads = 2048;
 	vertexBufferSize = maxQuads * 4 * vertexSize;
@@ -31,6 +32,8 @@ void GeometryBatcher::initialize() {
 	}
 	indices = renderer->create(rendering::Buffer::Index,false,indexBufferSize,indexD);
 	core::memory::globalAllocator()->deallocate(indexD);
+
+	mesh = renderer->create(vertices,indices,vertexLayout);
 }
 void GeometryBatcher::begin(VertexDescriptor vertexLayout,Mode mode) {
 	vertexSize = 0;
@@ -39,7 +42,9 @@ void GeometryBatcher::begin(VertexDescriptor vertexLayout,Mode mode) {
 	this->mode = mode;
 
 	assert(vertexSize != 0);
-	if(vertexBufferSize == 0) initialize();
+	if(vertexBufferSize == 0) initialize(vertexLayout);
+	else 
+		services::rendering()->update(mesh,vertices,indices,vertexLayout);//Set new vertex layout(possibly not needed - TODO check)
 
 	if(!buffer){
 		buffer = (uint8*)services::frameAllocator()->allocate(vertexBufferSize,16);
@@ -53,9 +58,7 @@ void GeometryBatcher::end(){
 	auto renderer = services::rendering();
 
 	renderer->update(Buffer::Vertex,vertices,0,bufferReset,size_t(buffer - bufferReset));
-	renderer->bind(rendering::topology::Triangle);
-	renderer->bindVertices(vertices);
-	renderer->bindIndices(indices,sizeof(uint16));
+	renderer->bind(mesh,rendering::topology::Triangle,sizeof(uint16));
 	renderer->drawIndexed(0,count/4*6);
 	buffer = bufferReset;
 }

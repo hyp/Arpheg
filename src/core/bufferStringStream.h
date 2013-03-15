@@ -20,4 +20,17 @@ BufferAllocator& operator<<(BufferAllocator& buffer, uint32 i);
 BufferAllocator& operator<<(BufferAllocator& buffer, uint64 i);
 const char* asCString(BufferAllocator& buffer);
 
+//A wrapper for the inplace string formatter
+struct Formatter {
+	enum { kBufferSize = 2048 };
+	BufferAllocator allocator;
+	char buffer[kBufferSize];
+	
+	inline Formatter();
+	inline operator BufferAllocator&();
+};
+inline Formatter::Formatter() : allocator(core::Bytes(buffer,sizeof(buffer)),BufferAllocator::ResetOnOverflow) {}
+inline Formatter::operator BufferAllocator&() { return allocator; }
+
+
 } }

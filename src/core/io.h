@@ -6,10 +6,11 @@
 
 namespace io {
 
+	// A wrapper for stdio FILE* which closes the file on scope exit
 	struct File {
 		enum Mode {
 			Read = 1 ,Write = 2,Append = 4,Insert = 8,
-			Text = 16
+			Text = 0x10,
 		};
 		FILE* fptr;
 
@@ -18,18 +19,18 @@ namespace io {
 		inline operator FILE* ();
 
 	private:
-		File(const File& other) {}
-		File operator = (const File& other) { return *this; }
+		inline File(const File& other) {}
+		inline void operator = (const File& other) { }
 	};
 	inline File::operator FILE* () { return fptr; }
 
-	//Represents a file fully loaded into memory
+	// A structure which loads the file into memory when created and releases the memory when destroyed
 	struct Data {
 		uint8* begin;
 		size_t size;
 		core::Allocator* allocator;
 
-		Data(const char* path,core::Allocator* allocator = nullptr);
+		Data(const char* path,core::Allocator* allocator = nullptr,size_t alignment = 16);
 		~Data();
 	};
 }

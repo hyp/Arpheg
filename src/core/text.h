@@ -5,6 +5,35 @@
 namespace core {
 namespace text {
 
+Bytes trimFront(Bytes string);
+Bytes trim(Bytes string);
+
+bool  matchNewline(Bytes& string);
+inline bool  peekNewline(Bytes string){
+	return !string.empty() && (string.begin[0] >= 0xA && string.begin[0] <= 0xD);
+}
+Bytes parseLine(Bytes& string);
+Bytes parseIndentedLines(Bytes& string);
+int32 parseInt32(Bytes& string);
+float parseFloat(Bytes& string);
+Bytes parseUntil(Bytes& string,char  terminator);
+
+
+struct Lines: Bytes {
+	Lines(Bytes data) : Bytes(data) {}
+	inline Bytes getLine();
+	inline Bytes getLineTrimmed();
+	inline Bytes getLineTrimmedSkipEmpty();
+};
+inline Bytes Lines::getLine() { return parseLine(*this); }
+inline Bytes Lines::getLineTrimmed() { return trim(parseLine(*this)); }
+inline Bytes Lines::getLineTrimmedSkipEmpty() {
+start:
+	auto line = trim(parseLine(*this));
+	if(line.empty() && !empty()) goto start;
+	return line;
+}
+
 struct Tokenizer {
 	enum {
 		Trim = 1,
@@ -35,15 +64,5 @@ public:
 	float expectFloat();
 	void readString(char* buffer,int bufferLength,char end);
 };
-struct Lines: Tokenizer {
-	Lines(Bytes data,uint32 modes = 0);
-	inline Bytes getLine() {
-		getLineToken();
-		return Bytes(tokenStart,tokenEnd);
-	}
-private:
-	Lines(const Lines& other) : Tokenizer(Bytes(nullptr,(size_t)0)) {}
-};
 
-}
-}
+} }

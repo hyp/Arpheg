@@ -1,0 +1,83 @@
+pipeline:
+	id = 'ui.pipeline'
+	glsl.vertexAttributes: 'position','texcoord','colour'
+	vertexShader:
+		in vec2 position; in vec2 texcoord; in vec4 colour;
+		out vec2 vsTexcoord;out vec4 vsColour;
+		uniform mat4 matrix;
+		void main() { 
+			gl_Position = matrix*vec4(position,0,1);
+			vsTexcoord = vec2(texcoord.x,1.0-texcoord.y); vsColour = colour;
+		}
+	pixelShader:
+		in vec2 vsTexcoord; in vec4 vsColour;
+		out vec4 fragment;
+		uniform sampler2D texture;
+		float linearizeDepth(float z){
+			float near = 0.1;
+			float far = 10.0;
+			return (2.0 * near) / (far + near - z * (far - near));	
+		}
+		void main() {
+			float z = texture2D(texture,vsTexcoord).r;
+			//float v = linearizeDepth(z);
+			float v = (z+1.0f)*0.5;
+			//float v = (texture2D(texture,vsTexcoord).r+1.0f)*0.5;
+			fragment = vec4(v,v,v,z<1.0? 1.0 : 0.0)* vsColour;//texture2D(texture,vsTexcoord) * vsColour;
+		}
+	
+
+pipeline:
+	id = 'text.pipeline'
+	glsl.vertexAttributes: 'position','texcoord','channelMask','colour'
+	vertexShader:
+		in vec2 position;in vec2 texcoord;in vec4 channelMask; in vec4 colour;
+		out vec2 vsTexcoord;out vec4 vsChannelMask;out vec4 vsColour;
+		uniform mat4 matrix;
+		void main(){
+			gl_Position = matrix*vec4(position,0,1);
+			vsTexcoord = texcoord;vsChannelMask = channelMask;vsColour = colour;
+		}
+	pixelShader:
+		in vec2 vsTexcoord;in vec4 vsChannelMask;in vec4 vsColour;
+		uniform sampler2D texture;
+		out vec4 fragment;
+		void main(){
+			float value = dot(texture2D(texture,vsTexcoord),vsChannelMask);
+			fragment = vsColour*value;
+		}
+	
+	
+pipeline:
+	id = 'text.outlined.pipeline'
+	glsl.vertexAttributes: 'position','texcoord','channelMask','colour','outlineColour'
+	vertexShader:
+		in vec2 position;in vec2 texcoord;in vec4 channelMask; in vec4 colour; in vec4 outlineColour;
+		out vec2 vsTexcoord;out vec4 vsChannelMask;out vec4 vsBorderColour; out vec4 vsColour;
+		uniform mat4 matrix;
+		void main(){
+			gl_Position = matrix*vec4(position,0,1);
+			vsTexcoord = texcoord;vsChannelMask = channelMask;vsBorderColour = outlineColour; vsColour = colour;
+		}
+	pixelShader:
+		in vec2 vsTexcoord;in vec4 vsChannelMask;in vec4 vsBorderColour;in vec4 vsColour;
+		uniform sampler2D texture;
+		out vec4 fragment;
+		void main(){
+			float value = dot(texture2D(texture,vsTexcoord),vsChannelMask);
+			if(value > 0.69)
+				 fragment = vec4(vsColour.xyz*(2.0*value - 1.0),vsColour.a);
+			else fragment = vec4(vsBorderColour.xyz,value*vsBorderColour.a);
+		}
+	
+
+texture:
+	id = 'ui.atlas'
+	path = '../meshes/crate.tga'
+
+sprite:
+	id = 'icon'
+	texture = 'ui.atlas'
+	frame: 0,0, 1.0,1.0
+	
+

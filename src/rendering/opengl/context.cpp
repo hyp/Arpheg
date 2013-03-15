@@ -1,4 +1,5 @@
 #include "../../core/assert.h"
+#include "../../core/bufferStringStream.h"
 #include "../../services.h"
 #include "gl.h"
 #include "context.h"
@@ -21,6 +22,7 @@ namespace opengl {
 #if  defined(ARPHEG_PLATFORM_MARMALADE)
 	Context::Context() {
 		IwGLInit(); 
+		apiSupport = 0;
 		extCheck = extSupport = 0;
 		version_ = vec2i(2,0);//GLes 2.0
 	}
@@ -43,6 +45,36 @@ namespace opengl {
 	}
 #else
 
+	void Context::checkApiSupport() {
+		using namespace support;
+		auto logger = services::logging();
+
+		auto major = version_.x,minor = version_.y;
+		apiSupport = 0;
+		if(major >= 3){
+			if(minor >= 1) {
+				if(!glDrawArraysInstanced || !glDrawElementsInstanced){
+					logger->warning("OpenGL reports version >= 3.1, but it doesn't provide 'glDrawArraysInstanced' and/or 'glDrawElementsInstanced'");
+				} else apiSupport |= GL3_hardware_instancing;
+				if(!glUniformBlockBinding){
+					logger->warning("OpenGL reports version >= 3.1, but it doesn't provide 'glUniformBlockBinding'");
+				} else apiSupport |= GL3_uniform_buffer_objects;
+				apiSupport |= GL3_texture_buffer_objects;
+			}
+			if(minor >= 2) {
+				apiSupport |= GL3_geometry_shaders | GL3_ms_textures;
+			}
+			if(minor >= 3){
+				if(!glGenSamplers || !glDeleteSamplers || !glBindSampler){
+					logger->warning("OpenGL reports version >= 3.3, but it doesn't provide 'glGen/Delete/BindSamplers'");
+				}
+				else apiSupport |= GL3_sampler_objects;
+			}
+		}
+		if(major >= 4){
+			apiSupport |= GL4_tesselation;
+		}
+	}
 #if defined(ARPHEG_PLATFORM_WIN32)
 	Context::Context() {
 		auto target = services::application()->mainWindow();
@@ -107,6 +139,7 @@ namespace opengl {
 		extCheck = extSupport = 0;
 		version_ = vec2i(major,minor);
 		vsync_ = false;
+		checkApiSupport();
 	}
 	Context::~Context() {
 		wglMakeCurrent(0, 0);
@@ -251,6 +284,7 @@ static int ctxErrorHandler( Display *dpy, XErrorEvent *ev ) {
 		extCheck = extSupport = 0;
 		//version_ = vec2i(major,minor);
 		vsync_ = false;
+		checkApiSupport();
 	}
 	Context::~Context() {
 		auto data = (application::X11Window*)services::application()->mainWindow()->handle();
@@ -272,6 +306,7 @@ static int ctxErrorHandler( Display *dpy, XErrorEvent *ev ) {
 		glXSwapBuffers ( data->display, data->win );
 	}
 #endif
+
 
 	vec2i Context::frameBufferSize() {
 		return services::application()->mainWindow()->size();

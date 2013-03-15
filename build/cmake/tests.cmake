@@ -6,4 +6,6 @@ macro (test name source)
 endmacro (test)
 
 test(core "../src/core/unittest.cpp")
-test(contouring "../src/contouring/unittest.cpp")
+test(components "../src/components/unittest.cpp")
+test(datatext  "../src/data/text/unittest.cpp")
+test(ui "../src/ui/unittest.cpp")

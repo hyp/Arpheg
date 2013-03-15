@@ -1,0 +1,29 @@
+
+pipeline:
+	id = 'default'
+	glsl.vertexAttributes: 'position', 'normal', 'texcoord'
+	vertexShader = 'shaders/shaderVertex.glsl'
+	pixelShader  = 'shaders/shaderPixel.glsl'
+
+font:
+	id = 'font'
+	path = 'fonts/font.fnt'
+	
+texture:
+	id = 'crate'
+	path = 'meshes/crate.tga'
+
+mesh:
+	id = 'head'
+	path = 'meshes/head.dae'
+	material = 'material1'
+	
+
+	
+	
+	
+
+
+	
+
+	

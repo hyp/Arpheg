@@ -2,7 +2,7 @@
 #include <string>
 #include <iostream>
 #include "assert.h"
-#include "murmurHash.h"
+#include "hash/murmur.h"
 #include "typeDescriptor.h"
 #include "text.h"
 #include "structLayout.h"
@@ -18,7 +18,21 @@ void testMurmurHash(){
 	assert(core::murmurHash32(s,strlen(s),0) == 0x159061E2);
 }
 void testMemory(){
+	assert(core::memory::align_forward((void*)0,4) == (void*)0);
+	assert(core::memory::align_forward((void*)1,4) == (void*)4);
+	assert(core::memory::align_forward((void*)3,4) == (void*)4);
+	assert(core::memory::align_forward((void*)4,4) == (void*)4);
 
+	core::BufferAllocator buffer(1024);
+	auto ptr = buffer.allocate(256);
+	assert(buffer.size() == 256);
+	assert(buffer.capacity() == 1024);
+	assert(buffer.canAllocate(128));
+	assert(!buffer.canAllocate(1024));
+	assert(buffer.toOffset(ptr) == 0);
+	assert(buffer.toPointer(0) == ptr);
+	buffer.reset();
+	assert(buffer.size() == 0);
 }
 void testUtf(){
 	struct test {
@@ -218,13 +232,79 @@ void testCharSource(){
 	assert(len == 3);
 	source5.skip(len);
 }
+static core::Bytes bytes(const char* text){
+	return core::Bytes((void*)text,strlen(text));
+}
+inline bool operator == (core::Bytes str,const char* text){
+	if(strlen(text) != str.length()) return false;
+	return str.empty() || memcmp(str.begin,text,str.length()) == 0;
+}
 void testText(){
 	using namespace core::text;
-	std::string sample = "Hello world 12\r\n  Foo fighters!\r\n";
+
+	assert(trimFront(bytes("Test")) == "Test");
+	assert(trimFront(bytes("Test  ")) == "Test  ");
+	assert(trimFront(bytes(" Test  ")) == "Test  ");
+
+	assert(trim(bytes("Test")) == "Test");
+	assert(trim(bytes("Test  ")) == "Test");
+	assert(trim(bytes(" Test  ")) == "Test");
+
+	auto src = bytes("Hello world\r\nLine 2\n4 -123");
+	assert(parseLine(src) == "Hello world");
+	assert(parseLine(src) == "Line 2");
+	assert(parseInt32(src) == 4);
+	src.begin++;
+	assert(parseInt32(src) == -123);
+	assert(src.empty());
+
+	auto src2 = bytes(
+		"\tTest string\n"
+		"\tHello\n"
+		"\n"
+		"\tWorld\n"
+		"\t\tTest\n"
+		"\t\n");
+	auto foo = parseIndentedLines(src2);
+	assert(foo ==
+		"\tTest string\n"
+		"\tHello\n"
+		"\n"
+		"\tWorld\n"
+		"\t\tTest\n"
+		"\t");
+
+	src2 = bytes(
+		"\tTest string\n"
+		"\tHello\n"
+		"\n"
+		"\tWorld\n"
+		"\t\tTest\n"
+		"\t");
+	foo = parseIndentedLines(src2);
+	assert(foo ==
+		"\tTest string\n"
+		"\tHello\n"
+		"\n"
+		"\tWorld\n"
+		"\t\tTest");
+
+	src2 = bytes(
+		"\tDescription\n"
+		"\n"
+		"\tGarage band\n"
+		"-\n");
+	foo = parseIndentedLines(src2);
+	assert(foo == 	
+		"\tDescription\n"
+		"\n"
+		"\tGarage band");
+
+	std::string sample = "Hello world 12\r\n \n\t\n  Foo fighters!\r\n";
 
 	int lineNo = 0;
-	for(Lines lines(core::Bytes((void*)sample.c_str(),sample.length()),Lines::Trim|Lines::SkipEmpty);!lines.empty();lineNo++){
-		auto line = lines.getLine();
+	for(Lines lines(core::Bytes((void*)sample.c_str(),sample.length()));!lines.empty();lineNo++){
+		auto line = lines.getLineTrimmedSkipEmpty();
 		std::string text((const char*) line.begin,(const char*) line.end);
 		if(lineNo == 0) assert(text == "Hello world 12");
 		else assert(text == "Foo fighters!");
@@ -232,14 +312,19 @@ void testText(){
 	assert(lineNo == 2);
 }
 void testTypeDescriptor(){
-	CoreTypeDescriptor descriptor;
-	descriptor.id = CoreTypeDescriptor::TInt32;
+	core::TypeDescriptor descriptor;
+	descriptor.id = core::TypeDescriptor::TInt32;
 	descriptor.count = 1;
-	assert(descriptor.size() == 4);
+	assert(descriptor.size() == sizeof(int32));
 	descriptor.count = 4;
-	assert(descriptor.size() == 4*4);
-	descriptor.id = CoreTypeDescriptor::TFloat;
-	assert(descriptor.size() == 4*4);
+	assert(descriptor.size() == sizeof(int32)*4);
+	descriptor.id = core::TypeDescriptor::TUint16;
+	assert(descriptor.size() == sizeof(uint16)*4);
+
+	descriptor.id = core::TypeDescriptor::TFloat;
+	assert(descriptor.size() == sizeof(float)*4);
+	descriptor.id = core::TypeDescriptor::TDouble;
+	assert(descriptor.size() == sizeof(double)*4);
 }
 void testStructLayout(){
 	STRUCT_PREALIGN(16) struct floatx4 {

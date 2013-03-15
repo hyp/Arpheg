@@ -176,11 +176,11 @@ namespace core {
 	class MallocAllocator: public Allocator {
 
 		struct Header {
-			void* unaligned;
+			uint32 padBegin;
 			static const uint32 padValue = 0;
 
 			void fill(void* data){
-				unaligned = this;
+				padBegin = uint32(this);
 				uint32 *p = (uint32 *)(this + 1);
                 while (p < data)
                    *p++ = padValue;
@@ -203,7 +203,7 @@ namespace core {
 		void  deallocate(void* p) {
 			//free(p);
 			auto header = Header::header(p);
-			free(header->unaligned);
+			free(header);
 		}
 	};
 	MallocAllocator mallocAllocator;

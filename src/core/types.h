@@ -1,12 +1,8 @@
 #pragma once
 
-#define PLATFORM_RENDERING_GL 1
-#define PLATFORM_RENDERING_GLES 20
-
-//Target platform
-//#define ARPHEG_PLATFORM_MARMALADE
+// Target platform
 #ifndef ARPHEG_PLATFORM_MARMALADE
-	#ifdef  _WIN32
+	#if defined(_WIN32) || defined(WIN32)
 		#define ARPHEG_PLATFORM_WIN32 1
 	#elif defined(__APPLE__) || defined(MACOSX)
 		#define ARPHEG_PLATFORM_OSX 1
@@ -15,26 +11,35 @@
 		#define ARPHEG_PLATFORM_LINUX 1
 		#define ARPHEG_PLATFORM_X11 1
 	#endif
+#else
+	#define ARPHEG_PLATFORM_MOBILE 1
 #endif
 
-//Target CPU architecture
-#define ARPHEG_ARCH_ARM
-#define ARPHEG_ARCH_X86
+// Target CPU architecture
+#define ARPHEG_ARCH_ARM 1
+#define ARPHEG_ARCH_X86 1
 
-#ifdef  ARPHEG_ARCH_X86
-	#define ARPHEG_ARCH_SIMD
+#ifdef  ARPHEG_ARCH_X86 
+	#define ARPHEG_ARCH_SIMD 1
+	#define ARPHEG_ARCH_X86_SSE2 1
 #endif
 #ifndef ARPHEG_ARCH_BIG_ENDIAN
-	#define ARPHEG_ARCH_LITTLE_ENDIAN
+	#define ARPHEG_ARCH_LITTLE_ENDIAN 1
 #endif
 
 //Target renderer
 #define ARPHEG_RENDERING_GL 1
-//#define ARPHEG_RENDERING_GLES 1
 
-#define ARPHEG_RENDERING_GL_VERSION_MAJOR 2
-#define ARPHEG_RENDERING_GL_VERSION_MINOR 0
-#define ARPHEG_RENDERING_GL_VERSION 200
+#if ARPHEG_PLATFORM_MOBILE 
+	#ifndef ARPHEG_RENDERING_GL
+		#define ARPHEG_RENDERING_GL 1
+	#endif
+	#define ARPHEG_RENDERING_GLES 1
+
+	#define ARPHEG_RENDERING_GL_VERSION_MAJOR 2
+	#define ARPHEG_RENDERING_GL_VERSION_MINOR 0
+	#define ARPHEG_RENDERING_GL_VERSION 200
+#endif
 
 #include <stddef.h>
 

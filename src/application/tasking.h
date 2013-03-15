@@ -59,7 +59,7 @@ public:
 	inline uint32 workerCount() const;
 	inline uint32 threadCount() const;
 
-	//The id of the current thread.
+	//The id of the current thread. It is guaranteed to be less than thread count.
 	uint32   threadId() const;
 	//Thread context is available for main and worker threads
 	Context& threadContext() const;

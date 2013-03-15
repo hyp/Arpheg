@@ -5,6 +5,24 @@
 
 namespace rendering {
 
+	class Service;
+	namespace debug {
+		class Service;
+	}
+	namespace ui    {
+		class Service;
+	}
+	namespace animation {
+		class Service;
+	}
+	namespace batching {
+		struct Geometry {
+			uint32  indexOffset;
+			float*  vertices;
+			uint16* indices;
+		};
+	}
+
 	struct Viewport {
 		vec2i position, size;
 	};
@@ -17,6 +35,8 @@ namespace rendering {
 			Triangle,
 			TriangleStrip,
 			TriangleFan,
+			Patch,
+			kMax,
 		};
 	}
 	namespace blending {
@@ -44,6 +64,10 @@ namespace rendering {
 				colorOp = alphaOp = op;
 			}
 		};
+
+		State disabled();
+		State alpha();
+		State premultipliedAlpha();
 	}
 	namespace rasterization {
 		enum FillMode {
@@ -62,7 +86,7 @@ namespace rendering {
 		};
 	}
 	struct VertexDescriptor {
-		CoreTypeDescriptor* fields;
+		core::TypeDescriptor* fields;
 		uint32 count;
 		const char** slots;
 		
@@ -74,6 +98,7 @@ namespace rendering {
 		static VertexDescriptor positionAs2Float_texcoordAs2Float_colourAs4Bytes();
 		static VertexDescriptor positionAs3Float_normalAs3Float();
 		static VertexDescriptor positionAs4Float_normalAs4Float();
+		static VertexDescriptor positionAs3Float_normalAs3Float_texcoordAs2Float();
 	};
 	namespace texture {
 		enum Format {
@@ -84,6 +109,14 @@ namespace rendering {
 			UINT_RG_1616,
 			UINT_RGB_161616,
 			UINT_RGBA_16161616,
+			FLOAT_R_32,
+			FLOAT_RG_3232,
+			FLOAT_RGB_323232,
+			FLOAT_RGBA_32323232,
+			FLOAT_R_16,
+			FLOAT_RG_1616,
+			FLOAT_RGB_161616,
+			FLOAT_RGBA_16161616,
 			DXT1,
 			DXT5,
 
@@ -134,8 +167,10 @@ namespace rendering {
 
 		size_t maxConstantBufferSize;
 	};
+
+	
 }
 
-#ifdef PLATFORM_RENDERING_GL
+#ifdef ARPHEG_RENDERING_GL
 	#include "opengl/types.h"
 #endif

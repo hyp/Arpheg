@@ -1,7 +1,9 @@
 #pragma once
 
 namespace rendering {
-	//Strong typedef
+	//Uses strong typedefs
+
+	// A buffer holds information
 	struct Buffer {
 		enum Type {
 			Vertex, Index, Constant
@@ -9,27 +11,57 @@ namespace rendering {
 		uint32 id;
 
 		inline bool isNull() { return id == 0; }
-		inline bool makeNull() { id = 0; }
+		inline void makeNull() { id = 0; }
+		static inline Buffer nullBuffer() { Buffer result = { 0 }; return result; }
+
+		struct Mapping {
+			void* data;
+			uint32 id;
+			Type  type;
+		};
 	};
-	struct TextureBuffer {
-		uint32 id;
+
+	// A mesh is simply a vertex buffer and an index buffer, 
+	// however it may also store some optimization information for specific API,
+	// like VAO for OpenGL, 
+	// and therefore it may bind and render faster than two separate buffer binds.
+	struct Mesh {
+		Buffer vbo;
+		Buffer ibo;
+		uint32 vao;
 	};
+
 	struct Texture1D {
 		uint32 id;
+		uint32 type;
 	};
 	struct Texture2D {
 		uint32 id;
+		uint32 type;
 	};
 	struct Texture2DArray {
 		uint32 id;
+		uint32 type;
 	};
 	struct Texture3D {
 		uint32 id;
+		uint32 type;
+	};
+	struct TextureBuffer {
+		uint32 id;
+		uint32 type;
 	};
 
-	struct Shader       {
+	struct Sampler {
+		uint32 id;
+	};
+	struct RenderTarget {
+		uint32 id;
+		uint32 datId;
+	};
+	struct Shader {
 		enum Type {
-			Vertex,Pixel,Geometry
+			Vertex,Pixel,Geometry,TesselationControl,TesselationEvaluation,MaxTypes
 		};
 		uint32 id;
 	};
@@ -42,15 +74,21 @@ namespace rendering {
 
 			Constant(const char* name);
 		};
+
+		//GLSL specific extra information for program linking (GLSL 3.3 layout)
+		struct GLSLLayout {
+			const char** vertexAttributes;
+			uint32 vertexAttributeCount;
+			const char** pixelAttributes;
+			uint32 pixelAttributeCount;
+
+			GLSLLayout();
+		};
+	
 		uint32 id;
-		uint32 inputDescriptorCount;
-		CoreTypeDescriptor* inputDescriptor;
+
+		static inline Pipeline nullPipeline() { Pipeline result = { 0 }; return result; }
+		inline bool operator ==(Pipeline other) const { return id == other.id; }
 	};
-	struct Sampler {
-		uint32 id;
-	};
-	struct RenderTarget {
-		uint32 id;
-		uint32 datId;
-	};
+
 }

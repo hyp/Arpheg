@@ -40,12 +40,12 @@ BufferAllocator& operator<<(BufferAllocator& buffer, char c){
 }
 BufferAllocator& operator<<(BufferAllocator& buffer, const char *s){
 	auto len = strlen(s);
-	memcpy(buffer.allocate(len,0),s,len);
+	if(len) memcpy(buffer.allocate(len,0),s,len);
 	return buffer;
 }
 BufferAllocator& operator<<(BufferAllocator& buffer, core::Bytes str){ 
 	auto len = str.length();
-	memcpy(buffer.allocate(len,0),str.begin,len);
+	if(len) memcpy(buffer.allocate(len,0),str.begin,len);
 	return buffer;
 }
 BufferAllocator& operator<<(BufferAllocator& buffer, float f){

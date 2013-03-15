@@ -3,8 +3,10 @@
 #include "../core/platform.h"
 #include "../core/assert.h"
 #include "../core/utf.h"
+#include "../core/bufferArray.h"
 #include "../services.h"
 #include "input.h"
+#include "events.h"
 
 #ifdef ARPHEG_PLATFORM_X11
 #include "../application/x11window.h"
@@ -44,7 +46,7 @@ void onSingleTouchMotion(s3ePointerMotionEvent* e,void* ud){
 
 #endif
 
-Service::Service(){
+Service::Service() : emmitedEvents_(1024,core::memory::globalAllocator(),core::BufferAllocator::GrowOnOverflow) {
 	for(auto touch = touchEvents(),end = touchEventsEnd();touch < end;++touch) touch->isActive = 0;
 	memset(keyMap,0,sizeof(keyMap));
 	memset(buttons,0,sizeof(buttons));
@@ -85,6 +87,7 @@ void Service::servicePreStep() {
 }
 void Service::servicePostStep() {
 	//Clear the mouse button events
+	caps &= ~FlagMouseMoved;
 	for(uint32 i = 0;i<mouse::kMaxButtons;++i){
 		buttons[i] = 0;
 	}
@@ -109,6 +112,7 @@ void Service::emitMouseEvent(int32 x,int32 y,uint32 action,uint32 button) {
 	assert(button <= mouse::kMaxButtons);
 	if(action == 0){
 		cursorPosition_ = vec2i(x,y);
+		caps |= FlagMouseMoved;
 	}
 	else {
 		//if(caps & AwaitingBinding)
@@ -142,6 +146,24 @@ touch::Event* Service::getTouchEvent(int32 id){
 
 void Service::waitForEventBinding() {
 	caps |= AwaitingBinding;
+}
+
+void Service::handleEvents(events::IHandler* handler) {
+	//TODO key, touch, joy
+	auto mouse = vec2f(cursorPosition_.x,cursorPosition_.y);
+	if(caps & FlagMouseMoved){
+		events::Mouse ev;ev.position = mouse; handler->onMouseMove(ev);
+	}
+
+	events::MouseButton mb;
+	mb.position = mouse;
+	for(uint32 i = 0;i<mouse::kMaxButtons;++i){
+		if(buttons[i]){
+			mb.button = i;
+			mb.action = mouse::ButtonState(buttons[i]);
+			handler->onMouseButton(mb);
+		}
+	}
 }
 
 }

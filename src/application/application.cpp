@@ -29,7 +29,6 @@ Service::~Service() {
 }
 #include <Windowsx.h>
 
-
 //Win32 event dispatch
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	uint32 mouseKey,mouseAction;

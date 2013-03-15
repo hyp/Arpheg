@@ -1,0 +1,14 @@
+pipeline:
+	id = 'arpheg.debug.pipeline'
+	glsl.vertexAttributes: 'position', 'colour'
+	vertexShader:
+		in vec3 position; in vec4 colour;
+		out vec4 vsColour;
+		void main() {
+			gl_Position = vec4(position,1); vsColour = colour;
+		}
+	pixelShader:
+		in vec4 vsColour;
+		out vec4 fragment;
+		void main() { fragment = vsColour; }
+		

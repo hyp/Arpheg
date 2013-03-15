@@ -20,15 +20,15 @@ namespace io {
 		fptr = nullptr;
 	}
 
-	Data::Data(const char* path,core::Allocator* allocator){
+	Data::Data(const char* path,core::Allocator* allocator,size_t alignment){
 		if(!allocator) allocator = core::memory::globalAllocator();
 		this->allocator = allocator;
 		File file(path,File::Read);
-		//TODO replace this method
+		//TODO replace?
 		fseek(file,0,SEEK_END);
 		size = ftell(file);
 		fseek(file,0,SEEK_SET);
-		begin = (uint8*)allocator->allocate(size,16);
+		begin = (uint8*)allocator->allocate(size,alignment);
 		fread(begin,1,size,file);
 	}
 	Data::~Data(){

@@ -3,6 +3,8 @@
 #include "../core/utf.h"
 #include "application.h"
 
+#ifndef ARPHEG_PLATFORM_MOBILE
+
 #ifdef ARPHEG_PLATFORM_WIN32
 	extern LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #elif defined(ARPHEG_PLATFORM_X11)
@@ -54,6 +56,7 @@ void MainWindow::create(const char* title,vec2i size){
 		size.x, size.y, NULL, NULL, hInstance, NULL);
 	if(!hwnd){
 		services::logging()->fatal("Failed to create a window!");
+		return;
 	}
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -197,3 +200,5 @@ void MainWindow::resize(vec2i size) {
 #endif
 
 }
+
+#endif

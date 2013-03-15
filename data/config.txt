@@ -1,0 +1,23 @@
+# Sample configuration file
+
+application:
+	logging.level = logging.trace
+	
+	timing.win32ThreadAffinity = no
+	timing.smooth = yes
+	
+	tasking.mainthreads = 1
+	
+	window.size: 0,0
+	window.fullscreen = no
+	
+rendering:
+	vsync = no
+	adaptiveVsync = no
+	
+	gl:
+		emulateSamplerObjects = yes
+	
+sound:
+	enabled = yes
+
