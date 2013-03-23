@@ -1,0 +1,1 @@
+This directory contains the implementation for the importers of intermediate data, such as meshes from blender or collada files, fonts from anglecode font generator, and text bundles.

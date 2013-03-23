@@ -115,8 +115,8 @@ STRUCT_PREALIGN(16) struct vec4f {
 } STRUCT_POSTALIGN(16);
 #include "math/vec4f.h"
 
-STRUCT_PREALIGN(16) struct Quaternion : vec4f {
-	float x,y,z,w;
+STRUCT_PREALIGN(16) struct Quaternion {
+	vec4f v_;
 
 	inline Quaternion () {}
 	inline Quaternion(float xx,float yy,float zz,float ww);
@@ -128,6 +128,8 @@ STRUCT_PREALIGN(16) struct Quaternion : vec4f {
 	static inline Quaternion identity();
 	inline Quaternion operator* (const Quaternion& v) const;
 	inline Quaternion operator* (float k) const;
+	inline Quaternion operator+ (const Quaternion& v) const;
+	inline Quaternion operator- (const Quaternion& v) const;
 	inline vec4f v() const;
 	inline float norm() const;
 	inline Quaternion conjugate() const;
@@ -142,6 +144,7 @@ STRUCT_PREALIGN(16) struct mat44f {
 	inline mat44f() { }
 	inline mat44f(const vec4f& aa,const vec4f& bb,const vec4f& cc,const vec4f& dd) : a(aa),b(bb),c(cc),d(dd) { }	
 	mat44f operator * (const mat44f& other) const; 
+	inline void transposeSelf();
 
 	static mat44f identity();
 	static mat44f ortho(vec2f min,vec2f max,float near = -1.0f,float far = 1.0f);
@@ -189,6 +192,14 @@ inline vec4f operator * (const mat44f& m,const vec4f& v) {
 	return res;
 #endif
 #endif
+}
+inline void mat44f::transposeSelf() {
+	__m128 v0 = _mm_load_ps(&a.x);
+	__m128 v1 = _mm_load_ps(&b.x);
+	__m128 v2 = _mm_load_ps(&c.x);
+	__m128 v3 = _mm_load_ps(&d.x);
+	_MM_TRANSPOSE4_PS(v0, v1, v2, v3);
+	a = vec4f(v0);b = vec4f(v1);c = vec4f(v2);d = vec4f(v3);
 }
 
 struct vec2i {

@@ -28,6 +28,8 @@ namespace data {
 
 		Pipeline* pipeline(ID id);
 		SubMesh*  submesh(ID id);
+		Mesh* mesh(ID id);
+		animation::Animation* animation(ID id);
 		Font* font(ID id);
 		Sprite* sprite(ID id);
 

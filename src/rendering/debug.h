@@ -6,6 +6,7 @@
 #include "../core/thread/types.h"
 #include "../core/math.h"
 #include "../core/memory.h"
+#include "../data/types.h"
 
 namespace rendering {
 namespace debug {
@@ -20,6 +21,7 @@ public:
 	void axis(const mat44f& matrix,bool depthtest = true);//3D axis	
 	void wireBox (const mat44f& matrix,vec3f min,vec3f max,const vec4f& colour,bool depthtest = true);
 	void box(const mat44f& matrix,vec3f min,vec3f max,const vec4f& colour);
+	void skeleton(const data::Bone* bones,size_t count,const vec4f& colour = vec4f(0.f,0.f,1.f,1.f),bool depthtest = false);
 
 	void line     (vec2f a,vec2f b,const vec4f& colour);
 	void wireRectangle(vec2f min,vec2f max,const vec4f& colour);

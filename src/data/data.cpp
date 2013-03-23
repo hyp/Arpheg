@@ -9,7 +9,6 @@
 #include "../core/bufferStringStream.h"
 #include "data.h"
 #include "image/reader.h"
-#include "mesh/reader.h"
 
 #include "internal/internal.h"
 #include "intermediate/bundle/parser.h"
@@ -233,9 +232,14 @@ SubMesh::SubMesh(const rendering::Mesh& mesh,uint32 offset,uint32 count,uint32 i
 	data_ = count&kCountMask | ((indexSize&kIndexSizeMask)<<kIndexOffset) | ((uint32(mode)&kIndexSizeMask)<<kPrimOffset);
 	primitiveOffset_ = offset;
 }
+Mesh::Mesh(SubMesh* singleSubMesh) {
+	submeshCount_ = 1;
+	boneCount_ = 0;
+	submeshes_.oneSubmesh = singleSubMesh;
+	skeleton_ = nullptr;
+}
 
 
-//Direct loading of intermediate resources from the filesystem
 void Service::loadBundle(ID filename,const char* id) {
 	impl()->loadBundle(filename);
 }
@@ -257,6 +261,12 @@ Pipeline* Service::pipeline(ID id) {
 SubMesh*  Service::submesh(ID id) {
 	return (SubMesh*) impl()->getResourceFromID(id);
 }
+Mesh* Service::mesh(ID id) {
+	return (Mesh*) impl()->getResourceFromID(id);
+}
+animation::Animation* Service::animation(ID id) {
+	return (animation::Animation*) impl()->getResourceFromID(id);
+}
 Font* Service::font(ID id) {
 	return (Font*) impl()->getResourceFromID(id);
 }
@@ -264,6 +274,7 @@ Sprite* Service::sprite(ID id) {
 	return (Sprite*) impl()->getResourceFromID(id);
 }
 
+//Direct loading of intermediate resources from the filesystem
 rendering::Texture2D Service::loadTexture(const char* name){
 	class Reader: public image::Reader {
 	public:
@@ -274,7 +285,6 @@ rendering::Texture2D Service::loadTexture(const char* name){
 	};
 	Reader reader;
 	reader.load(name);
-	impl()->renderingTexture2D(reader.result);
 	return reader.result;
 }
 

@@ -55,7 +55,7 @@ namespace internal_ {
 
 	class ObjectStack: public core::BufferAllocator {
 	public:
-		ObjectStack(size_t size = 1024*32);
+		ObjectStack(size_t size = 1024*256);
 		inline ResourceStackSection stackSection() const {
 			ResourceStackSection s = { uint32(size()) };
 			return s;

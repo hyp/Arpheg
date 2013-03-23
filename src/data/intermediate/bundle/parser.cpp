@@ -9,10 +9,11 @@
 
 #include "../../internal/internal.h"
 
-#include "../../mesh/reader.h"
+
 #include "../../image/reader.h"
 #include "../../shader/preprocess.h"
 #include "../../utils/path.h"
+#include "../mesh/reader.h"
 #include "../font/reader.h"
 
 #include "parser.h"
@@ -62,25 +63,109 @@ void Mesh::end(){
 		internal_::Service* service;
 		internal_::ResourceBundle* bundle;
 		Mesh* self;
+		::data::Mesh* destMesh;
+		uint32 animationId;
 
-		bool processMesh(const intermediate::Mesh& mesh,const intermediate::Material* material){
+		Reader() : animationId(0) {}
+
+		void processMesh(const intermediate::Mesh& mesh,uint32 vertexFormat,const intermediate::Material* material){
+			//bool hasSkeleton = !mesh.bones.empty();
+
 			auto rendering = services::rendering();
 			auto vertexBuffer = rendering->create(rendering::Buffer::Vertex,false,mesh.vertices.length(),mesh.vertices.begin);
 			auto indexBuffer  = rendering->create(rendering::Buffer::Index,false,mesh.indices.length(),mesh.indices.begin);
-			auto m = rendering->create(vertexBuffer,indexBuffer,rendering::VertexDescriptor::positionAs3Float_normalAs3Float_texcoordAs2Float());
+			rendering::VertexDescriptor vd;
+			if(vertexFormat & Options::VertexWeights){
+				//position,normal,texcoord,bone weights
+				static core::TypeDescriptor posNTW[4] = { { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,2 } , { core::TypeDescriptor::TFloat,4 } };
+				vd.fields = posNTW;
+				vd.count = 4;
+			} else {
+				vd = rendering::VertexDescriptor::positionAs3Float_normalAs3Float_texcoordAs2Float();
+			}
+			auto m = rendering->create(vertexBuffer,indexBuffer,vd);
 			auto count = mesh.indices.length()/mesh.indexSize;
-				
-			//Create the new submesh
-			auto submesh = new(service->newSubMesh()) ::data::SubMesh(m,0,count,sizeof(uint16),rendering::topology::Triangle);
-			service->mapPointerToID(bundle,submesh,self->id);
+
+			//Create a mesh object with one submesh
+			destMesh = service->allocateObject<::data::Mesh>(sizeof(SubMesh));
+			auto submesh = (::data::SubMesh*)(destMesh+1);
+			assert((uintptr_t(submesh) % alignof(::data::SubMesh)) == 0);
+			new(destMesh) ::data::Mesh(submesh);
+			new(submesh) ::data::SubMesh(m,0,count,sizeof(uint16),rendering::topology::Triangle);
+			service->mapPointerToID(bundle,destMesh,self->id);
 
 			//Register imported data
 			service->renderingBuffer(vertexBuffer);
 			service->renderingBuffer(indexBuffer);
 			service->renderingMesh(m);
+
+		}
+		void processSkeleton(uint32 boneCount,const Bone* bones){
+			//Attach the skeleton to the mesh
+			assert(destMesh);
+			for(uint32 i = 0;i<boneCount;++i){
+				core::bufferStringStream::Formatter fmt;
+				core::bufferStringStream::printf(fmt.allocator,"Bone[%d] = parent %d, transform(%f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f), offset(%f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f)",i,bones[i].parentId,
+					bones[i].transform.a.x,bones[i].transform.a.y,bones[i].transform.a.z,bones[i].transform.a.w,
+					bones[i].transform.b.x,bones[i].transform.b.y,bones[i].transform.b.z,bones[i].transform.b.w,
+					bones[i].transform.c.x,bones[i].transform.c.y,bones[i].transform.c.z,bones[i].transform.c.w,
+					bones[i].transform.d.x,bones[i].transform.d.y,bones[i].transform.d.z,bones[i].transform.d.w,
+					bones[i].offset.a.x,bones[i].offset.a.y,bones[i].offset.a.z,bones[i].offset.a.w,
+					bones[i].offset.b.x,bones[i].offset.b.y,bones[i].offset.b.z,bones[i].offset.b.w,
+					bones[i].offset.c.x,bones[i].offset.c.y,bones[i].offset.c.z,bones[i].offset.c.w,
+					bones[i].offset.d.x,bones[i].offset.d.y,bones[i].offset.d.z,bones[i].offset.d.w);
+				services::logging()->trace(core::bufferStringStream::asCString(fmt.allocator));
+			}
+			auto destBones = service->allocateObject<Bone>(sizeof(Bone)*(boneCount-1));
+			memcpy(destBones,bones,(boneCount)*sizeof(Bone));
+			destMesh->boneCount_ = boneCount;
+			destMesh->skeleton_ = destBones;
+		}
+		void processSkeletalAnimation(const char* name,const animation::Animation& animation) {
+
+			core::bufferStringStream::Formatter fmt;
+			if(!name || !strlen(name)) {
+				using namespace core::bufferStringStream;
+				name = asCString(fmt.allocator<<self->id<<".animation."<<animationId);
+			}
+			animationId++;
+
+			size_t memory = sizeof(animation::Track) * animation.trackCount + alignof(vec4f);
+			for(uint32 i  = 0;i<animation.trackCount;++i){
+				memory+=animation.tracks[i].positionKeyCount * sizeof(animation::PositionKey) +
+					animation.tracks[i].rotationKeyCount * sizeof(animation::RotationKey) +
+					animation.tracks[i].scalingKeyCount * sizeof(animation::ScalingKey);
+			}
+			auto destAnimation = service->allocateObject<animation::Animation>(memory);
+			destAnimation->length = animation.length;
+			destAnimation->frequency = animation.frequency;
+			destAnimation->trackCount = animation.trackCount;
+			destAnimation->tracks = (animation::Track*)(destAnimation+1);
+			uint8* ptr = (uint8*)(destAnimation->tracks+animation.trackCount);
+			ptr = (uint8*)core::memory::align_forward(ptr,alignof(vec4f));
+			for(uint32 i  = 0;i<animation.trackCount;++i){
+				core::bufferStringStream::Formatter fmt;
+				core::bufferStringStream::printf(fmt.allocator,"Track[%d] = bone %d",i,animation.tracks[i].nodeId);
+				services::logging()->trace(core::bufferStringStream::asCString(fmt.allocator));
+
+				destAnimation->tracks[i].nodeId = animation.tracks[i].nodeId;
+				destAnimation->tracks[i].positionKeyCount = animation.tracks[i].positionKeyCount;
+				destAnimation->tracks[i].positionKeys = (animation::PositionKey*) ptr;
+				memcpy(ptr,animation.tracks[i].positionKeys,sizeof(animation::PositionKey) * animation.tracks[i].positionKeyCount);
+				ptr+=sizeof(animation::PositionKey) * animation.tracks[i].positionKeyCount;
+				
+				destAnimation->tracks[i].rotationKeyCount = animation.tracks[i].rotationKeyCount;
+				destAnimation->tracks[i].rotationKeys = (animation::RotationKey*) ptr;
+				memcpy(ptr,animation.tracks[i].rotationKeys,sizeof(animation::RotationKey) * animation.tracks[i].rotationKeyCount);
+				ptr+=sizeof(animation::RotationKey) * animation.tracks[i].rotationKeyCount;
+				
+				destAnimation->tracks[i].scalingKeyCount = animation.tracks[i].scalingKeyCount;
+				destAnimation->tracks[i].scalingKeys = (animation::ScalingKey*) ptr;
+				memcpy(ptr,animation.tracks[i].scalingKeys,sizeof(animation::ScalingKey) * animation.tracks[i].scalingKeyCount);
+				ptr+=sizeof(animation::ScalingKey) * animation.tracks[i].scalingKeyCount;
+			}
 			
-			//Free the storage memory
-			return true;
+			service->mapPointerToID(bundle,destAnimation,core::Bytes((void*)name,strlen(name)));
 		}
 	};
 	Reader reader;reader.service = parser->service;reader.bundle = parser->bundle;reader.self = this;

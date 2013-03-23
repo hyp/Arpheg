@@ -233,6 +233,12 @@ void Service::box(const mat44f& matrix,vec3f min,vec3f max,const vec4f& colour) 
 	//TODO
 	if(colour.w < 1.0f) trianglesHaveOpacity_ = true;
 }
+void Service::skeleton(const data::Bone* bones,size_t count,const vec4f& colour,bool depthtest) {
+	//Assume that the bones are sorted hirerachily
+	for(size_t i = 0;i < count;++i){
+		//bones[i].offset;
+	}
+}
 
 void Service::line(vec2f a,vec2f b,const vec4f& colour){
 	line(mat44f::identity(),vec3f(a.x,a.y,0),vec3f(b.x,b.y,0),colour,false);

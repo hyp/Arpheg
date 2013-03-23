@@ -47,7 +47,8 @@ public:
 	//Key frame interpolation.
 	static inline vec3f interpolate(const data::animation::PositionKey& a,const data::animation::PositionKey& b,float time){
 		//Lerp
-		return a.position + (b.position - a.position) * ((time - a.time) / (b.time - a.time));
+		float k = (time - a.time) / (b.time - a.time);
+		return a.position * (1.0f - k) + b.position * (k);
 	}
 	static inline Quaternion interpolate(const data::animation::RotationKey& a,const data::animation::RotationKey& b,float time){
 		//Lerp

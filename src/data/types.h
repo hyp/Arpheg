@@ -75,6 +75,7 @@ namespace data {
 	//A bone is a joint in a skeleton
 	struct Bone {
 		uint32 parentId;
+		mat44f transform;
 		mat44f offset;
 	};
 
@@ -89,8 +90,6 @@ namespace data {
 		inline uint32 indexSize() const;
 		inline rendering::topology::Primitive primitiveKind() const;
 		inline Material* material() const;
-		inline uint32 skeletonBoneCount() const;
-		inline Bone*  skeleton() const;
 	private: 
 		enum { kCountMask = 0xFFFFFF };
 		enum { kIndexOffset = 24,kIndexSizeMask = 0xF };
@@ -112,22 +111,27 @@ namespace data {
 	//A mesh is a collection of submeshes, it also can have a skeleton
 	class Mesh {
 	public:
+		explicit Mesh(SubMesh* singleSubMesh);
 		inline size_t submeshCount() const;
-		inline SubMesh* submeshes() const;
+		inline SubMesh* submesh(size_t i = 0) const;
 		inline bool hasSkeleton() const;
 		inline size_t skeletonBoneCount() const;
 		inline Bone*  skeleton() const;
-	
+		
+		union SubmeshArray {
+			SubMesh* oneSubmesh;
+			SubMesh** manySubMeshes;
+		};
 		uint32 submeshCount_;
 		uint32 boneCount_;
-		SubMesh* submeshes_;
+		SubmeshArray submeshes_;
 		Bone* skeleton_;
 	};
 	inline size_t Mesh::submeshCount() const {
 		return size_t(submeshCount_);
 	}
-	inline SubMesh* Mesh::submeshes() const {
-		return submeshes_;
+	inline SubMesh* Mesh::submesh(size_t i) const {
+		return submeshCount_ < 2? submeshes_.oneSubmesh : submeshes_.manySubMeshes[i];
 	}
 	inline bool Mesh::hasSkeleton() const {
 		return boneCount_!=0;
@@ -153,6 +157,7 @@ namespace data {
 			float time;
 			vec3f position;
 		};
+		typedef PositionKey ScalingKey;
 		struct RotationKey {
 			float time;
 			Quaternion rotation;
@@ -162,15 +167,15 @@ namespace data {
 			uint32 nodeId;
 			uint32 positionKeyCount;
 			uint32 rotationKeyCount;
-			float  length;
+			uint32 scalingKeyCount;
 			PositionKey* positionKeys;
 			RotationKey* rotationKeys;
+			ScalingKey*  scalingKeys;
 		};
 		//An animation consists of bones and tracks.
 		struct Animation {
-			uint32 id;
 			uint32 trackCount;
-			float  length;
+			float  length,frequency;
 			Track* tracks;
 		};
 	}

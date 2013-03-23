@@ -1,4 +1,5 @@
 #include "../core/assert.h"
+#include "../core/bufferStringStream.h"
 #include "../services.h"
 #include "../application/tasking.h"
 #include "animation.h"
@@ -66,63 +67,70 @@ NodeTransformationBuffer::Transformation* NodeTransformationBuffer::allocate(siz
 }
 
 void Player::animate(const data::animation::Animation* animation,size_t boneCount,const data::Bone* bones,mat44f* final,float& time,const mat44f* bindPose){
-	float localTime = fmod(time,animation->length);
-	//Setup each bone
+
+	float timeInTicks = time * animation->frequency;
+	float localTime = fmod(timeInTicks,animation->length);
+
 	for(size_t i = 0;i<boneCount;++i){
-		final[i] = mat44f::identity();
+		final[i] = bones[i].transform;
 	}
-	//Calculate the matrix for each bone
+
+	//Calculate the interpolated local transform from the animation for relevant nodes
 	for(size_t i = 0;i<size_t(animation->trackCount);++i){
 		auto track = animation->tracks + i;
 		//float localTime = fmod(time,track->length);
 		size_t firstKey;
-		vec3f position;
-		Quaternion rotation;
-		//Find the position track
-		for(firstKey = 0;firstKey<track->positionKeyCount;++firstKey){
-			if(track->positionKeys[firstKey].time <= localTime){
+		vec3f position = vec3f(0,0,0);
+		Quaternion rotation = Quaternion::identity();
+		vec3f scaling = vec3f(1,1,1);
+		//Find the position track.
+		for(firstKey = 0;firstKey<track->positionKeyCount-1;++firstKey){
+			if(localTime < track->positionKeys[firstKey+1].time){
 				auto secondKey = (firstKey + 1)!=track->positionKeyCount? firstKey+1 : size_t(0);
 				position = interpolate(track->positionKeys[firstKey],track->positionKeys[secondKey],localTime);
 				break;
 			}
 		}
-		if(firstKey == track->positionKeyCount){
-			position = vec3f(0,0,0);
-		}
-		//Rotation
-		for(firstKey = 0;firstKey<track->rotationKeyCount;++firstKey){
-			if(track->rotationKeys[firstKey].time <= localTime){
+
+		for(firstKey = 0;firstKey<track->rotationKeyCount-1;++firstKey){
+			if(localTime < track->rotationKeys[firstKey+1].time){
 				auto secondKey = (firstKey + 1)!=track->rotationKeyCount? firstKey+1 : size_t(0);
-				rotation = interpolate(track->rotationKeys[firstKey],track->rotationKeys[secondKey],localTime);
+				rotation = Quaternion(interpolate(track->rotationKeys[firstKey],track->rotationKeys[secondKey],localTime).v().normalize());
 				break;
 			}
 		}
-		if(firstKey == track->rotationKeyCount){
-			rotation = Quaternion::identity();
+
+		for(firstKey = 0;firstKey<track->scalingKeyCount-1;++firstKey){
+			if(localTime < track->scalingKeys[firstKey+1].time){
+				auto secondKey = (firstKey + 1)!=track->scalingKeyCount? firstKey+1 : size_t(0);
+				scaling = interpolate(track->scalingKeys[firstKey],track->scalingKeys[secondKey],localTime);
+				break;
+			}
 		}
-		//
-		final[track->nodeId] = mat44f::translate(position)*mat44f::rotate(rotation);
+
+		final[track->nodeId] =  ( mat44f::translate(position) * mat44f::scale(scaling) * mat44f::rotate(rotation) ) ;//* final[track->nodeId] ;// * 
 	}
-	//Traverse the skeleton hierarchy and find the final bone matrices.
-	//Assume the bones are sorted hierarchily
+
+	//Compute the world transformation for each node.
+	for(size_t i = 1;i<boneCount;++i){
+		//This verifies that the bones are sorted and the hirearchy is processed correctly
+		assert(bones[i].parentId < i);
+		final[i] =  final[bones[i].parentId] * final[i];
+	}
+
+	//Calculate the final matrix taking bind pose into account.
+	//bindPose = &bones[0].offset;
 	if(bindPose){
 		for(size_t i = 1;i<boneCount;++i){
-			//This verifies that the bones are sorted and the hirearchy is processed correctly
-			assert(bones[i].parentId < i);
-			auto release = final[i] * final[bones[i].parentId];
-			//Calculate the Final matrix
-			final[i] = (*bindPose) * bones[i].offset * release;
+			final[i] = final[i] * (bones[i].offset * (*bindPose)) ;////(final[i] * bones[i].offset) * (*bindPose);//( ((*bindPose) * bones[i].offset) * final[i];
 		}
 	} else {
+		//assert(false);
 		for(size_t i = 1;i<boneCount;++i){
-			//This verifies that the bones are sorted and the hirearchy is processed correctly
-			assert(bones[i].parentId < i);
-			auto release = final[i] * final[bones[i].parentId];
-			//Calculate the Final matrix
-			final[i] = bones[i].offset * release;
+			final[i] = final[i] * bones[i].offset;
 		}
 	}
-	time = localTime;
+	//time = fmod(timeInTicks,animation->length*animation->frequency);
 }
 
 Service::Service(core::Allocator* allocator) 

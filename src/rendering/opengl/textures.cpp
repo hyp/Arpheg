@@ -262,7 +262,7 @@ namespace rendering {
 			textureReleased(samplerEmulationBuffer,texture->id);
 #endif
 	}
-	void Service::bind(const Texture2D* texture,uint32 slot = 0){
+	void Service::bind(const Texture2D* texture,uint32 slot){
 		assert(slot < kMaxTextureSlots);
 		glActiveTexture(GL_TEXTURE0 + slot);
 		glBindTexture(texture->type,texture->id);
