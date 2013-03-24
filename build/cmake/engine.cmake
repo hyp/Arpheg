@@ -59,8 +59,6 @@ set(ARPHEG_ENGINE_FILES
 	collisions/collisions.cpp
 	
 	components/state.cpp
-	
-	dependencies/stb/stb_image.c
 )
 foreach(i ${ARPHEG_ENGINE_FILES})
 	list(APPEND ARPHEG_FILES "../src/${i}")

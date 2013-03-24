@@ -34,7 +34,7 @@ namespace image {
 } }
 #else
 
-#include "../../dependencies/stb/stb_image.h"
+#include "../../dependencies/stb/stb_image.c"
 #include "../utils/path.h"
 
 namespace data {
