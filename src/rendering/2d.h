@@ -12,9 +12,9 @@ namespace draw2D {
 	}
 
 	//The textured coloured triangles batch has the following vertex layout:
-	//float x2 - position
-	//float x2 - texture coordinate
-	//uint8 x4(normalized) - colour
+	//int16 x2 - position
+	//uint16 x2(normalized) - texture coordinate
+	//uint8  x4(normalized) - colour
 	VertexDescriptor vertexLayout(uint32 mode);
 
 	struct VertexBuilder {
