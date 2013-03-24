@@ -72,7 +72,7 @@ int main(){
 	application::profiling::Timer profRasterizeTiles("Rasterize Tiles");
 	application::profiling::Timer profQuery("Query occlusion");
 
-	float cam = 60.f;
+	float cam = 4.f;
 	float anim = 0.f;
 
 	while(!services::application()->quitRequest()){

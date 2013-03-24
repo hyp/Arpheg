@@ -265,6 +265,16 @@ struct vec2i {
 	inline vec2i operator - (vec2i v) const { return vec2i(x-v.x,y-v.y); } 
 };
 
+struct vec2s {
+	int16 x,y;
+
+	inline vec2s() {}
+	inline vec2s(int16 xx,int16 yy) : x(xx),y(yy) {}
+	inline vec2s operator + (vec2s v) const { return vec2s(x+v.x,y+v.y); } 
+	inline vec2s operator - (vec2s v) const { return vec2s(x-v.x,y-v.y); } 
+};
+
+
 STRUCT_PREALIGN(16) struct vec4i {
 	int32 x,y,z,w;
 

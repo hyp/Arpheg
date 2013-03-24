@@ -5,11 +5,11 @@ namespace rendering {
 namespace draw2D {
 
 static core::TypeDescriptor triangleColourVertexLayoutDesc[2] = 
-	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TUint8,4 } };
+	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TNormalizedUint8,4 } };
 static core::TypeDescriptor triangleTextureVertexLayoutDesc[2] = 
-	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TFloat,2 } };
+	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TNormalizedUint16,2 } };
 static core::TypeDescriptor triangleTextureColourVertexLayoutDesc[3] = 
-	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TUint8,4 } };
+	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TNormalizedUint16,2 },{ core::TypeDescriptor::TNormalizedUint8,4 } };
 
 VertexDescriptor vertexLayout(uint32 m) {
 	VertexDescriptor result;
@@ -31,36 +31,35 @@ VertexDescriptor vertexLayout(uint32 m) {
 	return result;
 }
 
-void textured::coloured::quad(batching::Geometry& geometry,vec2f min,vec2f max,vec2f uvMin,vec2f uvMax,uint32 colour){
-	auto vs = geometry.vertices;
-	auto uvs = (uint32*)vs;
-	//20*4 = 80 vertex bytes per quad
-	vs[0] = min.x;vs[1] = min.y;vs[2] = uvMin.x;vs[3] = uvMin.y; uvs[4] = colour;
-	vs[5] = max.x;vs[6] = min.y;vs[7] = uvMax.x;vs[8] = uvMin.y; uvs[9] = colour;
-	vs[10] = max.x;vs[11] = max.y;vs[12] = uvMax.x;vs[13] = uvMax.y; uvs[14] = colour;
-	vs[15] = min.x;vs[16] = max.y;vs[17] = uvMin.x;vs[18] = uvMax.y; uvs[19] = colour;
+void textured::coloured::quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint16* tcoords,uint32 colour){
+	//64 vertex bytes per quad
+	draw2D::VertexBuilder builder(geometry.vertices);
+	builder.put(min.x,min.y).put(tcoords[0],tcoords[1]).put(colour);
+	builder.put(max.x,min.y).put(tcoords[2],tcoords[1]).put(colour);
+	builder.put(max.x,max.y).put(tcoords[2],tcoords[3]).put(colour);
+	builder.put(min.x,max.y).put(tcoords[0],tcoords[3]).put(colour);
 	//2*6 = 12 index bytes per quad
 	auto ids = geometry.indices;
 	auto baseVertex = uint16(geometry.indexOffset);
 	ids[0] = baseVertex;ids[1] = baseVertex+1;ids[2] = baseVertex+2;
 	ids[3] = baseVertex+2;ids[4] = baseVertex+3;ids[5] = baseVertex;
-	geometry.vertices += 20;
+	geometry.vertices = (float*) builder.dest;
 	geometry.indices += 6;
 	geometry.indexOffset += 4;
 }
-void textured::quad(batching::Geometry& geometry,vec2f min,vec2f max,vec2f uvMin,vec2f uvMax){
-	auto vs = geometry.vertices;
-	//16*4 = 64 vertex bytes per quad
-	vs[0] = min.x;vs[1] = min.y;vs[2] = uvMin.x;vs[3] = uvMin.y;
-	vs[4] = max.x;vs[5] = min.y;vs[6] = uvMax.x;vs[7] = uvMin.y;
-	vs[8] = max.x;vs[9] = max.y;vs[10] = uvMax.x;vs[11] = uvMax.y;
-	vs[12] = min.x;vs[13] = max.y;vs[14] = uvMin.x;vs[15] = uvMax.y;
+void textured::quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint16* tcoords){
+	//48 vertex bytes per quad
+	draw2D::VertexBuilder builder(geometry.vertices);
+	builder.put(min.x,min.y).put(tcoords[0],tcoords[1]);
+	builder.put(max.x,min.y).put(tcoords[2],tcoords[1]);
+	builder.put(max.x,max.y).put(tcoords[2],tcoords[3]);
+	builder.put(min.x,max.y).put(tcoords[0],tcoords[3]);
 	//2*6 = 12 index bytes per quad
 	auto ids = geometry.indices;
 	auto baseVertex = uint16(geometry.indexOffset);
 	ids[0] = baseVertex;ids[1] = baseVertex+1;ids[2] = baseVertex+2;
 	ids[3] = baseVertex+2;ids[4] = baseVertex+3;ids[5] = baseVertex;
-	geometry.vertices += 16;
+	geometry.vertices = (float*) builder.dest;
 	geometry.indices += 6;
 	geometry.indexOffset += 4;
 }

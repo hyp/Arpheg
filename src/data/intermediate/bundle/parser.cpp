@@ -436,13 +436,12 @@ void Sprite::set(core::Bytes field){
 }
 void Sprite::end(){
 	uint32 frameCount = 1;
-	auto sprite = new(parser->service->allocateObject< ::data::Sprite>(frameCount*sizeof(::data::Sprite::Frame))) ::data::Sprite();
+	auto sprite = new(parser->service->allocateObject< ::data::Sprite>(frameCount*sizeof(::data::Sprite::Frame))) ::data::Sprite(vec2i(int(size.x),int(size.y)));	
 	sprite->frameCount_ = frameCount;
 	sprite->frames_     = (::data::Sprite::Frame*)(sprite+1);
 	sprite->texture_    = *(rendering::Texture2D*)parser->service->getResourceFromID(parser->bundle,texture);
-	sprite->frames_[0].texcoordMin = vec2f(frame.x,frame.y);
-	sprite->frames_[0].texcoordMax = vec2f(frame.z,frame.w);
-	sprite->size_ = size;
+	sprite->frames_[0] = ::data::Sprite::Frame(&frame.x);
+
 	parser->service->mapPointerToID(parser->bundle,sprite,id);
 }
 

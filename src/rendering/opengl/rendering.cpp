@@ -105,13 +105,17 @@ namespace rendering {
 		}
 	}
 	static inline GLenum typeType(uint32 id){
-		//TODO full
+		id &= (~core::TypeDescriptor::kNormalized);
 		if(id == core::TypeDescriptor::TFloat) return GL_FLOAT;
 		else if(id == core::TypeDescriptor::TInt32) return GL_INT;
+		else if(id == core::TypeDescriptor::TUint32) return GL_UNSIGNED_INT;
 		else if(id == core::TypeDescriptor::TInt8)  return GL_BYTE;
 		else if(id == core::TypeDescriptor::TUint8) return GL_UNSIGNED_BYTE;
+		else if(id == core::TypeDescriptor::TInt16) return GL_SHORT;
 		else if(id == core::TypeDescriptor::TUint16) return GL_UNSIGNED_SHORT;
 		else if(id == core::TypeDescriptor::THalf) return GL_HALF_FLOAT;
+		else if(id == core::TypeDescriptor::TDouble) return GL_DOUBLE;
+		assert(false && "Unsupported vertex attribute type");
 		return 0;
 	}
 
@@ -130,7 +134,7 @@ namespace rendering {
 			uint32 glType = typeType(field->id);
 			assert((glType - GL_BYTE) < 255);
 			dest->type = uint8(glType - GL_BYTE);
-			dest->normalized = field->id == core::TypeDescriptor::TUint8? 1: 0;
+			dest->normalized = (field->id & core::TypeDescriptor::kNormalized) != 0;
 			auto sz = field->size();
 			assert(sz < 255);
 			dest->totalSize = uint8(sz);
@@ -166,7 +170,7 @@ namespace rendering {
 			stride += field->size();
 		for(auto field = fields,end = fields + count;field < end;++field,++i){
 			glEnableVertexAttribArray(i);
-			glVertexAttribPointer(i, (GLint)field->count, typeType(field->id), field->id == core::TypeDescriptor::TUint8? GL_TRUE: GL_FALSE, stride, offset);
+			glVertexAttribPointer(i, (GLint)field->count, typeType(field->id),(field->id & core::TypeDescriptor::kNormalized)!=0, stride, offset);
 			offset = (const void*) ( ((const uint8*)offset) + field->size());
 		}
 		return i;

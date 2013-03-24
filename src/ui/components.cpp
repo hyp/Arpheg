@@ -98,12 +98,10 @@ Image::Image(DataType image,uint32 colour) : image_(image),color_(colour) {
 }
 void Image::draw(Widget* widget,events::Draw& ev) {
 	auto geometry = ev.renderer->allocate(ev.layerId,uint32(Service::kTexturedColouredTrianglesBatch),4,6);
-	auto uvMin = image_->frames()[0].texcoordMin;
-	auto uvMax = image_->frames()[0].texcoordMax;
-	rendering::draw2D::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,uvMin,uvMax,color_);
+	rendering::draw2D::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,image_->frames()[0].textureCoords,color_);
 }
 vec2f Image::calculateSize() {
-	return image_->size_;
+	return image_->size();
 }
 
 Rectangle::Rectangle(uint32 colour){

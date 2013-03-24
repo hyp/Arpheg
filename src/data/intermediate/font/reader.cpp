@@ -137,14 +137,17 @@ struct FontParser : core::text::Tokenizer {
 			wildcard();
 		}
 		Font::Glyph glyph;
-		glyph.texture= character.page;
+		//glyph.texture= character.page;
 		glyph.xadvance = character.xadvance;
 		glyph.xoffset = character.xoffset;
 		glyph.yoffset = character.yoffset;
 		glyph.width   = character.width;
 		glyph.height  = character.height;
-		glyph.uvStart = vec2f(float(character.x)/float(common.width), float(character.y)/float(common.height));
-		glyph.uvEnd   = vec2f(float(character.x+character.width)/float(common.width), float(character.y + character.height)/float(common.height));
+		glyph.textureCoords[0] = Font::Glyph::textureCoordinate(float(character.x)/float(common.width));
+		glyph.textureCoords[1] = Font::Glyph::textureCoordinate(float(character.y)/float(common.height));
+		glyph.textureCoords[2] = Font::Glyph::textureCoordinate(float(character.x+character.width)/float(common.width));
+		glyph.textureCoords[3] = Font::Glyph::textureCoordinate(float(character.y+character.height)/float(common.height));
+
 		assert(character.id <= 255);
 		font.glyphs_[character.id] = glyph;
 	}

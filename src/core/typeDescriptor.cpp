@@ -5,6 +5,7 @@ namespace core {
 
 uint32 TypeDescriptor::size() {
 	uint32 element;
+	auto id = this->id & (~kNormalized);
 	if(id >= TInt8 && id <= TUint64) {
 		element = 1<<((id-TInt8)/2);
 	}

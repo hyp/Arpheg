@@ -34,24 +34,41 @@ namespace data {
 	};
 	inline rendering::Pipeline Pipeline::pipeline() const { return pipeline_; }
 
+
+	namespace normalizedUint16 {
+		typedef uint16 Type;
+		enum { one = 0xFFFF };
+
+		static inline Type make(float x){
+			return Type(x * float(one));
+		}
+	};
+
 	// A sprite is an image or a series of images residing on a single texture.
 	struct Sprite {
 		struct Frame {
-			vec2f texcoordMin,texcoordMax;
+			typedef normalizedUint16::Type TextureCoordinate;
+
+			TextureCoordinate textureCoords[4];
+
+			inline Frame() {}
+			explicit Frame(float* texcoords);
 		};
 
+		inline Sprite() {}
+		explicit Sprite(vec2i size);
 		inline rendering::Texture2D texture() const;
 		inline vec2f size() const;
 		inline uint32 frameCount() const;
 		inline Frame* frames() const;
 	
 		rendering::Texture2D texture_;
-		vec2f  size_;
-		uint32 frameCount_;
-		Frame* frames_;
+		uint32  size_;
+		uint32  frameCount_;
+		Frame*  frames_;
 	};
 	inline rendering::Texture2D Sprite::texture() const { return texture_; }
-	inline vec2f Sprite::size() const { return size_; }
+	inline vec2f Sprite::size() const { return vec2f( float(size_&0xFFFF),float(size_>>16) ); }
 	inline uint32 Sprite::frameCount() const { return frameCount_; }
 	inline Sprite::Frame* Sprite::frames() const { return frames_; }
 
@@ -71,13 +88,6 @@ namespace data {
 	};
 	inline uint32 Material::textureCount() { return textureCount_; }
 	inline rendering::Texture2D* Material::textures() { return textures_; }
-
-	//A bone is a joint in a skeleton
-	struct Bone {
-		uint32 parentId;
-		mat44f transform;
-		mat44f offset;
-	};
 
 	//TODO Can be 3x4 matrix.
 	typedef mat44f Transformation3D;

@@ -50,14 +50,14 @@ namespace fontType {
 //Vertex layout for rendering text
 /*
 	float x2 - position
-	float x2 - texture coordinate
+	uint16 x2(normalized) - texture coordinate
 	uint8 x4(normalized) - channel mask
 	uint8 x4(normalized) - colour
 */
 //Vertex layout for rendering text using outlined fonts
 /*
 	float x2 - position
-	float x2 - texture coordinate
+	uint16 x2(normalized) - texture coordinate
 	uint8 x4(normalized) - channel mask
 	uint8 x4(normalized) - colour
 	uint8 x4(normalized) - border colour

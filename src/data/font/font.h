@@ -7,10 +7,17 @@ namespace data {
 
 struct Font {
 	struct Glyph {
-		uint16 texture;
+		typedef normalizedUint16::Type TextureCoordinate;
+		static inline TextureCoordinate textureCoordinateOne() {
+			return normalizedUint16::one;
+		}
+		static inline TextureCoordinate textureCoordinate(float x){
+			return normalizedUint16::make(x);
+		}
+
 		int16  xadvance,xoffset,yoffset;
 		int16  width,height;
-		vec2f  uvStart,uvEnd;
+		TextureCoordinate textureCoords[4];
 	};
 
 	enum { kMaxPages = 4 };
