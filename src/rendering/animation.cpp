@@ -60,62 +60,92 @@ void NodeTransformationBuffer::upload() {
 	}
 	renderer->unmap(mapping);
 }
-NodeTransformationBuffer::Transformation* NodeTransformationBuffer::allocate(size_t nodeCount){
+Transformation3D* NodeTransformationBuffer::allocate(size_t nodeCount){
 	auto thread = services::tasking()->threadId();
 	assert(thread < threadStorageCount_);
-	return (NodeTransformationBuffer::Transformation*)threadStorage_[thread].allocate(sizeof(Transformation)*nodeCount,alignof(Transformation));
+	return (Transformation3D*)threadStorage_[thread].allocate(sizeof(Transformation3D)*nodeCount,alignof(Transformation3D));
 }
 
-void Player::animate(const data::animation::Animation* animation,size_t boneCount,const data::Bone* bones,mat44f* final,float& time,const mat44f* bindPose){
+struct TouchedNodeMask {
+	enum { kSizeofSizetInBits = sizeof(size_t)*8 };
+	size_t bits[Animator::kMaxNodes/kSizeofSizetInBits];
 
-	float timeInTicks = time * animation->frequency;
-	float localTime = fmod(timeInTicks,animation->length);
+	TouchedNodeMask(){
+		for(size_t i = 0;i<Animator::kMaxNodes/kSizeofSizetInBits;++i) bits[i] = 0;
+	}
+	inline void mark(size_t i){
+		size_t element= i/kSizeofSizetInBits;
+		size_t bit    = i%kSizeofSizetInBits;
+		bits[element] |= 1<<bit;
+	}
+	inline bool isNotTouched(size_t i){
+		size_t element= i/kSizeofSizetInBits;
+		size_t bit    = i%kSizeofSizetInBits;
+		return (bits[element] & (1<<bit)) == 0;
+	}
+};
 
-	for(size_t i = 0;i<boneCount;++i){
-		final[i] = bones[i].transform;
+//Obtain and store the wrapped local time
+inline float Animator::calculateLocalTime(const data::animation::Animation* animation,float& time) {
+	auto localTime = fmod(time * animation->frequency,animation->length);
+	time = localTime / animation->frequency;
+	return localTime;
+}
+//Calculate the interpolated local transform for a given track.
+inline Transformation3D Animator::calculateLocalTransformation(const data::animation::Track* track,float localTime) {
+	size_t firstKey;
+	vec3f position = vec3f(0,0,0);
+	Quaternion rotation = Quaternion::identity();
+	vec3f scaling = vec3f(1,1,1);
+
+	for(firstKey = 0;firstKey<track->positionKeyCount-1;++firstKey){
+		if(localTime < track->positionKeys[firstKey+1].time){
+			auto secondKey = (firstKey + 1)!=track->positionKeyCount? firstKey+1 : size_t(0);
+			position = interpolate(track->positionKeys[firstKey],track->positionKeys[secondKey],localTime);
+			break;
+		}
 	}
 
-	//Calculate the interpolated local transform from the animation for relevant nodes
+	for(firstKey = 0;firstKey<track->rotationKeyCount-1;++firstKey){
+		if(localTime < track->rotationKeys[firstKey+1].time){
+			auto secondKey = (firstKey + 1)!=track->rotationKeyCount? firstKey+1 : size_t(0);
+			rotation = interpolate(track->rotationKeys[firstKey],track->rotationKeys[secondKey],localTime);
+			break;
+		}
+	}
+
+	for(firstKey = 0;firstKey<track->scalingKeyCount-1;++firstKey){
+		if(localTime < track->scalingKeys[firstKey+1].time){
+			auto secondKey = (firstKey + 1)!=track->scalingKeyCount? firstKey+1 : size_t(0);
+			scaling = interpolate(track->scalingKeys[firstKey],track->scalingKeys[secondKey],localTime);
+			break;
+		}
+	}
+	return mat44f::translateRotateScale(position,rotation,scaling);
+}
+
+void Animator::animate(const data::animation::Animation* animation,size_t boneCount,const data::Bone* bones,mat44f* final,float& time,const mat44f* bindPose){
+	assert(boneCount < kMaxNodes);
+	if(!boneCount) return;
+	
+	TouchedNodeMask touchedNodesMask;
+	auto localTime = calculateLocalTime(animation,time);
+
 	for(size_t i = 0;i<size_t(animation->trackCount);++i){
 		auto track = animation->tracks + i;
-		//float localTime = fmod(time,track->length);
-		size_t firstKey;
-		vec3f position = vec3f(0,0,0);
-		Quaternion rotation = Quaternion::identity();
-		vec3f scaling = vec3f(1,1,1);
-		//Find the position track.
-		for(firstKey = 0;firstKey<track->positionKeyCount-1;++firstKey){
-			if(localTime < track->positionKeys[firstKey+1].time){
-				auto secondKey = (firstKey + 1)!=track->positionKeyCount? firstKey+1 : size_t(0);
-				position = interpolate(track->positionKeys[firstKey],track->positionKeys[secondKey],localTime);
-				break;
-			}
-		}
-
-		for(firstKey = 0;firstKey<track->rotationKeyCount-1;++firstKey){
-			if(localTime < track->rotationKeys[firstKey+1].time){
-				auto secondKey = (firstKey + 1)!=track->rotationKeyCount? firstKey+1 : size_t(0);
-				rotation = Quaternion(interpolate(track->rotationKeys[firstKey],track->rotationKeys[secondKey],localTime).v().normalize());
-				break;
-			}
-		}
-
-		for(firstKey = 0;firstKey<track->scalingKeyCount-1;++firstKey){
-			if(localTime < track->scalingKeys[firstKey+1].time){
-				auto secondKey = (firstKey + 1)!=track->scalingKeyCount? firstKey+1 : size_t(0);
-				scaling = interpolate(track->scalingKeys[firstKey],track->scalingKeys[secondKey],localTime);
-				break;
-			}
-		}
-
-		final[track->nodeId] =  ( mat44f::translate(position) * mat44f::scale(scaling) * mat44f::rotate(rotation) ) ;//* final[track->nodeId] ;// * 
+		final[track->nodeId] = calculateLocalTransformation(track,localTime);
+		touchedNodesMask.mark(size_t(track->nodeId));
 	}
 
-	//Compute the world transformation for each node.
+	//Get the base local transforms for nodes which aren't animated.
+	//Compute the global transformation for each node.
+	//NB: assumes that the bones are sorted and the hirearchy is processed correctly
+	if(touchedNodesMask.isNotTouched(0))
+		final[0] = bones[0].transform;
 	for(size_t i = 1;i<boneCount;++i){
-		//This verifies that the bones are sorted and the hirearchy is processed correctly
-		assert(bones[i].parentId < i);
-		final[i] =  final[bones[i].parentId] * final[i];
+		//assert(bones[i].parentId < i);
+		if(touchedNodesMask.isNotTouched(i)) final[i] = final[bones[i].parentId] * bones[i].transform;
+		else final[i] = final[bones[i].parentId] * final[i];
 	}
 
 	//Calculate the final matrix taking bind pose into account.
@@ -130,7 +160,40 @@ void Player::animate(const data::animation::Animation* animation,size_t boneCoun
 			final[i] = final[i] * bones[i].offset;
 		}
 	}
-	//time = fmod(timeInTicks,animation->length*animation->frequency);
+
+	
+}
+
+void Animator::animate(const data::Mesh* mesh,const data::animation::Animation* animation,float& time,Transformation3D* transformations) {
+	size_t nodeCount = mesh->skeletonNodeCount();
+	if(!nodeCount) return; 
+	assert(nodeCount < kMaxNodes);
+
+	TouchedNodeMask touchedNodesMask;
+	auto localTime = calculateLocalTime(animation,time);
+
+	//Local transformation.
+	for(size_t i = 0;i<size_t(animation->trackCount);++i){
+		auto track = animation->tracks + i;
+		transformations[track->nodeId] = calculateLocalTransformation(track,localTime);
+		touchedNodesMask.mark(size_t(track->nodeId));
+	}
+
+	//Global transformation.
+	auto parentIds = mesh->skeletonHierarchy();
+	auto defaults  = mesh->skeletonDefaultLocalTransformations();
+	if(touchedNodesMask.isNotTouched(0))
+		transformations[0] = defaults[0];
+	for(size_t i = 1;i<nodeCount;++i){
+		if(touchedNodesMask.isNotTouched(i)) transformations[i] = transformations[parentIds[i]] * defaults[i];
+		else transformations[i] = transformations[parentIds[i]] * transformations[i];
+	}
+}
+inline void Animator::bindSkeleton(const data::SubMesh* submesh,size_t nodeCount,const Transformation3D* skeletonTransformations,JointTransformation3D* jointTransformations) {
+	auto bindPoses = submesh->skeletonJoints();
+	for(size_t i = 1;i<nodeCount;++i){
+		jointTransformations[i] = skeletonTransformations[i] * bindPoses[i];
+	}
 }
 
 Service::Service(core::Allocator* allocator) 

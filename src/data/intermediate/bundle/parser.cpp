@@ -68,6 +68,10 @@ void Mesh::end(){
 
 		Reader() : animationId(0) {}
 
+		void processMesh(const ::data::Mesh& mesh,uint32 vertexFormat) {
+			
+
+		}
 		void processMesh(const intermediate::Mesh& mesh,uint32 vertexFormat,const intermediate::Material* material){
 			//bool hasSkeleton = !mesh.bones.empty();
 

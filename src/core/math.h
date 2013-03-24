@@ -81,6 +81,7 @@ STRUCT_PREALIGN(16) struct vec4f {
 #ifdef ARPHEG_ARCH_X86
 	explicit inline vec4f(__m128 value);
 	inline void operator = (__m128 value);
+	inline __m128 m128() const;
 #endif
 	
 	inline vec4f operator + (const vec4f& v) const;
@@ -89,13 +90,15 @@ STRUCT_PREALIGN(16) struct vec4f {
 	inline vec4f operator / (const vec4f& v) const;
 	inline vec4f operator * (float k) const;
 
+	inline float sum() const;
+	inline float dot(const vec4f& v) const;
+	inline float dot3(const vec4f& v) const;
 	inline float length() const;
 	inline float lengthSquared() const;
 	inline float length3() const;
 	inline float length3Squared() const;
 	inline vec4f normalize() const;
-	inline float dot(const vec4f& v) const;
-	inline float dot3(const vec4f& v) const;
+
 	inline vec3f xyz() const;
 	inline vec2f xy() const;
 	inline vec4f xxxx() const;
@@ -133,35 +136,93 @@ STRUCT_PREALIGN(16) struct Quaternion {
 	inline vec4f v() const;
 	inline float norm() const;
 	inline Quaternion conjugate() const;
+	
+	static inline Quaternion rotateX(float theta);
+	static inline Quaternion rotateY(float theta);
+	static inline Quaternion rotateZ(float theta);
+	static inline Quaternion rotate(vec3f axis,float theta);
 	inline vec3f rotate(const vec3f& point) const;
+
+
 	static inline Quaternion lerp(const Quaternion& a,const Quaternion& b,float k);
+	static inline Quaternion slerp(const Quaternion& a,const Quaternion& b,float k);
 } STRUCT_POSTALIGN(16);
 #include "math/quaternion.h"
+
+//The matrices are stored in Column-major(OpenGL order).
+STRUCT_PREALIGN(16) struct mat34f {
+	vec4f a,b,c; //columns
+
+	inline mat34f() { }
+	inline mat34f(const vec4f& aa,const vec4f& bb,const vec4f& cc) : a(aa),b(bb),c(cc) { }	
+} STRUCT_POSTALIGN(16) ;
 
 STRUCT_PREALIGN(16) struct mat44f {
 	vec4f a,b,c,d; //columns
 
 	inline mat44f() { }
 	inline mat44f(const vec4f& aa,const vec4f& bb,const vec4f& cc,const vec4f& dd) : a(aa),b(bb),c(cc),d(dd) { }	
-	mat44f operator * (const mat44f& other) const; 
+	explicit inline mat44f(const mat34f& mat);
+
+	inline mat44f operator + (const mat44f& other) const;
+	inline mat44f operator * (float k) const; 
+	inline mat44f operator * (const mat44f& other) const; 
+	inline void operator *= (const mat44f& other);
+	
 	inline void transposeSelf();
 
+	static void multiply(const mat44f& m1,const mat44f& m2,mat44f& result);
+	static void multiply(mat44f& m1,const mat44f& m2);
+
 	static mat44f identity();
-	static mat44f ortho(vec2f min,vec2f max,float near = -1.0f,float far = 1.0f);
-	static mat44f perspective(float fovy, float aspect, float znear, float zfar);
-	static mat44f lookAt(vec3f eye, vec3f center, vec3f up);
 	static mat44f translate(vec3f x);
 	static mat44f scale(vec3f x);
 	static mat44f rotate(const Quaternion& rotation);
+	static mat44f ortho(vec2f min,vec2f max,float near = -1.0f,float far = 1.0f);
+	static mat44f perspective(float fovy, float aspect, float znear, float zfar);
+	static mat44f lookAt(vec3f eye, vec3f center, vec3f up);
 
 	//Assume: The direction is a vector of unit length 1.
 	static mat44f translateRotateScale2D(vec2f translation,vec2f direction,vec2f scale);
 	static mat44f translateRotateScale2D(const mat44f& projectionView,vec2f translation,vec2f direction,vec2f scale);
 
+	static mat44f translateRotateScale(const vec3f& translation,const Quaternion& rotation,const vec3f& scaling);
+
 } STRUCT_POSTALIGN(16) ;
 
-inline vec4f operator * (const mat44f& m,const vec4f& v);
+inline  mat44f::mat44f(const mat34f& mat) : a(mat.a),b(mat.b),c(mat.c),d(0.f,0.f,0.f,1.f) {
+}
+inline mat44f mat44f::operator * (const mat44f& other) const {
+	mat44f result;
+	multiply(*this,other,result);
+	return result;
+}
+inline void mat44f::operator *= (const mat44f& other) {
+	multiply(*this,other);
+}
+inline mat44f mat44f::operator + (const mat44f& other) const {
+	return mat44f(a+other.a,b+other.b,c+other.c,d+other.d);
+}
+inline mat44f mat44f::operator * (float k) const {
+	return mat44f(a*k,b*k,c*k,d*k);
+}
+inline void mat44f::transposeSelf() {
+#ifdef ARPHEG_ARCH_X86
+	__m128 v0 = _mm_load_ps(&a.x);
+	__m128 v1 = _mm_load_ps(&b.x);
+	__m128 v2 = _mm_load_ps(&c.x);
+	__m128 v3 = _mm_load_ps(&d.x);
+	_MM_TRANSPOSE4_PS(v0, v1, v2, v3);
+	a = vec4f(v0);b = vec4f(v1);c = vec4f(v2);d = vec4f(v3);
+#else
+	a = vec4f(a.x,b.x,c.x,d.x);
+	b = vec4f(a.y,b.y,c.y,d.y);
+	c = vec4f(a.z,b.z,c.z,d.z);
+	d = vec4f(a.w,b.w,c.w,d.w);
+#endif
+}
 
+inline vec4f operator * (const mat44f& m,const vec4f& v);
 inline vec4f operator * (const mat44f& m,const vec4f& v) {
 #ifdef PLATFORM_MATH_MAT_ROWMAJOR
 	vec4f res;
@@ -193,14 +254,7 @@ inline vec4f operator * (const mat44f& m,const vec4f& v) {
 #endif
 #endif
 }
-inline void mat44f::transposeSelf() {
-	__m128 v0 = _mm_load_ps(&a.x);
-	__m128 v1 = _mm_load_ps(&b.x);
-	__m128 v2 = _mm_load_ps(&c.x);
-	__m128 v3 = _mm_load_ps(&d.x);
-	_MM_TRANSPOSE4_PS(v0, v1, v2, v3);
-	a = vec4f(v0);b = vec4f(v1);c = vec4f(v2);d = vec4f(v3);
-}
+
 
 struct vec2i {
 	int32 x,y;

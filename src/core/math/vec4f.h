@@ -23,6 +23,7 @@ inline vec4f vec4f::normalize() const {
 	float len = 1.0f/(sqrtf(x*x+y*y+z*z+w*w)); 
 	return (*this) * len; 
 }
+inline float vec4f::sum() const { return x+y+z+w; }
 inline float vec4f::dot(const vec4f& v) const  { return x*v.x+y*v.y+z*v.z+w*v.w; }
 inline float vec4f::dot3(const vec4f& v) const { return x*v.x+y*v.y+z*v.z; }
 
@@ -34,6 +35,7 @@ inline float vec4f::dot3(const vec4f& v) const { return x*v.x+y*v.y+z*v.z; }
 	}
 	inline vec4f::vec4f(__m128 value) { _mm_store_ps(&x,value); }
 	inline void vec4f::operator = (__m128 value) { _mm_store_ps(&x,value); }
+	inline __m128 vec4f::m128() const { return _mm_load_ps(&x); }
 
 	inline vec4f vec4f::operator + (const vec4f& v) const { return vec4f(_mm_add_ps(*(__m128*)(&x),*(__m128*)(&v.x))); } 
 	inline vec4f vec4f::operator - (const vec4f& v) const { return vec4f(_mm_sub_ps(*(__m128*)(&x),*(__m128*)(&v.x))); } 

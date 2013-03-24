@@ -201,6 +201,8 @@ struct Scene {
 	uint8 storageForImporter[MeshImporter::kMaxSizeof];
 	Material mat;
 
+	::data::Mesh resultingMesh;
+
 	Scene(core::Allocator* allocator);
 	~Scene();
 	Mesh importIntoOneMesh(const aiScene* scene);
@@ -320,8 +322,15 @@ void Scene::findSkeleton() {
 
 	//Create the skeleton
 	Bone* destBones = (Bone*)allocator->allocate(sizeof(Bone)*totalBoneCount,alignof(Bone));
-	
-	//Convert the bones.
+
+	assertRelease(totalBoneCount <= ::data::Mesh::kMaxSkeletonNodes);
+	auto destParentIds = (::data::Mesh::SkeletonJointId*) allocator->allocate(sizeof(::data::Mesh::SkeletonJointId)*totalBoneCount,alignof(::data::Mesh::SkeletonJointId));
+	auto destLocalTransforms = (::data::Transformation3D*)allocator->allocate(sizeof(::data::Transformation3D)*totalBoneCount,alignof(::data::Transformation3D));
+	resultingMesh.boneCount_ = totalBoneCount;
+	resultingMesh.skeletonHierarchy_ =  destParentIds;
+	resultingMesh.skeletonLocalTransforms_ = destLocalTransforms;
+
+	//Convert the nodes.
 	for(size_t i = 0;i<totalBoneCount;++i){
 		//Compute the offset matrix.
 		if(boneNodes[i].bone){
@@ -341,20 +350,24 @@ void Scene::findSkeleton() {
 		}
 		else destBones[i].parentId = parentId;
 
+		destParentIds[i] = ::data::Mesh::SkeletonJointId(parentId);
+		convertMatrix(&destLocalTransforms[i],boneNodes[i].self->mTransformation);
+		skeletonNodeMapping[boneNodes[i].self] = uint32(i);
+		
 		//Map the nodes and bones to ids.
 		if(boneNodes[i].bone) skeletonBoneMapping[boneNodes[i].bone] = uint32(i);
-		skeletonNodeMapping[boneNodes[i].self] = uint32(i);
 	}
 
 	//Verify that the bones are sorted hierachily.
 	for(size_t i = 1;i <totalBoneCount;++i){
 		assertRelease(destBones[i].parentId < i);
+		assertRelease(destParentIds[i] < i);
 	}
 
 	//Extract the global bind pose.
-	auto m_GlobalInverseTransform = scene->mRootNode->mTransformation;
-	m_GlobalInverseTransform.Inverse();
-	convertMatrix(&destBones[0].offset,m_GlobalInverseTransform);//util.skeletonRootTransform);
+	//auto m_GlobalInverseTransform = scene->mRootNode->mTransformation;
+	//m_GlobalInverseTransform.Inverse();
+	//convertMatrix(&destBones[0].offset,m_GlobalInverseTransform);//util.skeletonRootTransform);
 
 
 
@@ -530,6 +543,7 @@ void Scene::importSkeletalAnimationTracks() {
 		//Release the memory
 		for(uint32 i = 0;i < destAnimation.trackCount;++i){
 			if(auto ptr = destAnimation.tracks[i].positionKeys) allocator->deallocate(ptr);
+			if(auto ptr = destAnimation.tracks[i].rotationKeys) allocator->deallocate(ptr);
 			if(auto ptr = destAnimation.tracks[i].rotationKeys) allocator->deallocate(ptr);
 		}
 		allocator->deallocate(destAnimation.tracks);	

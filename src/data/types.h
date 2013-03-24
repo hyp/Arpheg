@@ -79,8 +79,14 @@ namespace data {
 		mat44f offset;
 	};
 
+	//TODO Can be 3x4 matrix.
+	typedef mat44f Transformation3D;
+
 	// A submesh is a renderable mesh resource.
 	struct SubMesh {
+		//A joint is used for skeletal animation (it stores the bind pose matrix).
+		typedef Transformation3D Joint;
+
 		SubMesh(const rendering::Mesh& mesh,uint32 offset,uint32 count,uint32 indexSize,rendering::topology::Primitive mode);
 		inline SubMesh() { }
 
@@ -90,14 +96,18 @@ namespace data {
 		inline uint32 indexSize() const;
 		inline rendering::topology::Primitive primitiveKind() const;
 		inline Material* material() const;
-	private: 
-		enum { kCountMask = 0xFFFFFF };
-		enum { kIndexOffset = 24,kIndexSizeMask = 0xF };
-		enum { kPrimOffset = 28 };
+		inline size_t skeletonJointsBegin() const;
+		inline Joint* skeletonJoints() const;
+		
 		Material* material_;
 		rendering::Mesh mesh_;
 		uint32 data_;
 		uint32 primitiveOffset_;
+		Joint* skeletonJoints_;
+	private: 
+		enum { kCountMask = 0xFFFFFF };
+		enum { kIndexOffset = 24,kIndexSizeMask = 0xF };
+		enum { kPrimOffset = 28 };
 	};
 	inline Material* SubMesh::material() const { return material_; }
 	inline rendering::Mesh& SubMesh::mesh() { return mesh_; }
@@ -107,16 +117,29 @@ namespace data {
 	inline rendering::topology::Primitive SubMesh::primitiveKind()  const{ 
 		return rendering::topology::Primitive(data_ >> kPrimOffset); 
 	}
+	inline SubMesh::Joint* SubMesh::skeletonJoints() const {
+		return skeletonJoints_;
+	}
+	inline size_t SubMesh::skeletonJointsBegin() const {
+		return 0;
+	}
 
 	//A mesh is a collection of submeshes, it also can have a skeleton
 	class Mesh {
 	public:
+		typedef uint16 SkeletonJointId;
+		enum { kMaxSkeletonNodes = 0xFFFF };
+
 		explicit Mesh(SubMesh* singleSubMesh);
 		inline size_t submeshCount() const;
 		inline SubMesh* submesh(size_t i = 0) const;
 		inline bool hasSkeleton() const;
 		inline size_t skeletonBoneCount() const;
 		inline Bone*  skeleton() const;
+
+		inline size_t skeletonNodeCount() const;
+		inline SkeletonJointId* skeletonHierarchy() const;
+		inline Transformation3D* skeletonDefaultLocalTransformations() const;
 		
 		union SubmeshArray {
 			SubMesh* oneSubmesh;
@@ -126,6 +149,9 @@ namespace data {
 		uint32 boneCount_;
 		SubmeshArray submeshes_;
 		Bone* skeleton_;
+
+		SkeletonJointId* skeletonHierarchy_;
+		Transformation3D* skeletonLocalTransforms_;
 	};
 	inline size_t Mesh::submeshCount() const {
 		return size_t(submeshCount_);
@@ -142,6 +168,11 @@ namespace data {
 	inline Bone*  Mesh::skeleton() const {
 		return skeleton_;
 	}
+	inline size_t Mesh::skeletonNodeCount() const {
+		return size_t(boneCount_);
+	}
+	inline Mesh::SkeletonJointId* Mesh::skeletonHierarchy() const { return skeletonHierarchy_; } 
+	inline Transformation3D* Mesh::skeletonDefaultLocalTransformations() const { return skeletonLocalTransforms_; } 
 
 	//Animation
 	namespace animation {
@@ -152,17 +183,18 @@ namespace data {
 			}
 		}
 
-		//Bones
+		//Keys
 		struct PositionKey {
 			float time;
 			vec3f position;
 		};
-		typedef PositionKey ScalingKey;
 		struct RotationKey {
 			float time;
 			Quaternion rotation;
 		};
-		//Each node has individiual track
+		typedef PositionKey ScalingKey;
+		
+		//A track affects a single node.
 		struct Track {
 			uint32 nodeId;
 			uint32 positionKeyCount;
@@ -172,7 +204,8 @@ namespace data {
 			RotationKey* rotationKeys;
 			ScalingKey*  scalingKeys;
 		};
-		//An animation consists of bones and tracks.
+		
+		//An animation consists of multiple tracks.
 		struct Animation {
 			uint32 trackCount;
 			float  length,frequency;
