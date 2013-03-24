@@ -30,7 +30,7 @@ core::BufferAllocator buffer(core::Bytes(&services::bytebb,1));
 
 
 static void initRenderingServices(core::Allocator* allocator){
-	assert(!rendering_);
+	assert(!services::rendering_);
 	services::rendering_ = ALLOCATOR_NEW(allocator,rendering::Service);
 	services::debugRendering_ = ALLOCATOR_NEW(allocator,rendering::debug::Service) (allocator);
 	services::animation_ = ALLOCATOR_NEW(allocator,rendering::animation::Service) (allocator);

@@ -412,7 +412,7 @@ void Font::end(){
 
 	auto font = new(parser->service->allocateObject< ::data::Font>()) ::data::Font(reader.result);
 #ifdef ARPHEG_RENDERING_GL
-	font->flipYTexcoord();
+	//font->flipYTexcoord();
 #endif
 	parser->service->mapPointerToID(parser->bundle,font,id);
 }

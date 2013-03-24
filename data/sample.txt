@@ -1,8 +1,8 @@
 
 pipeline:
 	id = 'default'
-	glsl.vertexAttributes: 'position', 'normal', 'texcoord'
-	vertexShader = 'shaders/shaderVertex.glsl'
+	glsl.vertexAttributes: 'position', 'normal', 'texcoord', 'weights'
+	vertexShader = 'shaders/vertexSkeletalAnimation.glsl'
 	pixelShader  = 'shaders/shaderPixel.glsl'
 
 font:
@@ -11,15 +11,13 @@ font:
 	
 texture:
 	id = 'crate'
-	path = 'meshes/crate.tga'
+	path = 'meshes/guard1_body.tga'
 
 mesh:
 	id = 'head'
-	path = 'meshes/head.dae'
+	path = 'meshes/boblampclean.md5mesh'
 	material = 'material1'
-	
-
-	
+		
 	
 	
 

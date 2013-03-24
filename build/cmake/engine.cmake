@@ -12,9 +12,6 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/dependencies/" ${CMAKE_MODULE_P
 find_package(ZLIB REQUIRED)
 list(APPEND ARPHEG_LIBS ${ZLIB_LIBRARY})
 include_directories(${ZLIB_INCLUDE_DIR})
-find_package(LIBPNG REQUIRED)
-list(APPEND ARPHEG_LIBS ${LIBPNG_LIBRARY})
-include_directories(${LIBPNG_INCLUDE_DIR})
 find_package(ASSIMP REQUIRED)
 list(APPEND ARPHEG_LIBS ${ASSIMP_LIBRARY})
 
@@ -46,10 +43,10 @@ set(ARPHEG_ENGINE_FILES
 
 	data/data.cpp
 	data/image/reader.cpp
-	data/mesh/reader.cpp
 	data/text/parser.cpp
 	data/shader/preprocess.cpp
 	data/font/font.cpp
+	data/intermediate/mesh/reader.cpp
 	data/intermediate/bundle/parser.cpp
 	data/intermediate/font/reader.cpp
 	data/utils/path.cpp
@@ -62,6 +59,8 @@ set(ARPHEG_ENGINE_FILES
 	collisions/collisions.cpp
 	
 	components/state.cpp
+	
+	dependencies/stb/stb_image.c
 )
 foreach(i ${ARPHEG_ENGINE_FILES})
 	list(APPEND ARPHEG_FILES "../src/${i}")
