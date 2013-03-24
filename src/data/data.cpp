@@ -236,9 +236,16 @@ Mesh::Mesh(SubMesh* singleSubMesh) {
 	submeshCount_ = 1;
 	boneCount_ = 0;
 	submeshes_.oneSubmesh = singleSubMesh;
-	skeleton_ = nullptr;
+	skeletonHierarchy_ = nullptr;
+	skeletonLocalTransforms_ = nullptr;
 }
-
+Mesh::Mesh(SubMesh** submeshes,size_t count) {
+	submeshCount_ = count;
+	boneCount_ = 0;
+	submeshes_.manySubMeshes = submeshes;
+	skeletonHierarchy_ = nullptr;
+	skeletonLocalTransforms_ = nullptr;
+}
 
 void Service::loadBundle(ID filename,const char* id) {
 	impl()->loadBundle(filename);

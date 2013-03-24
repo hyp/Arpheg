@@ -63,8 +63,6 @@ public:
 
 	static float  calculateLocalTime(const data::animation::Animation* animation,float& time);
 	static Transformation3D calculateLocalTransformation(const data::animation::Track* track,float localTime);
-
-	static void animate(const data::animation::Animation* animation,size_t nodeCount,const data::Bone* bones,mat44f* final,float& time,const mat44f* bindPose = nullptr);
 	
 	//Mesh animation
 	static void animate     (const data::Mesh* mesh,const data::animation::Animation* animation,float& time,Transformation3D* skeletonTransformations);

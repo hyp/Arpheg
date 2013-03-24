@@ -131,11 +131,10 @@ namespace data {
 		enum { kMaxSkeletonNodes = 0xFFFF };
 
 		explicit Mesh(SubMesh* singleSubMesh);
+		Mesh(SubMesh** submeshes,size_t count);
 		inline size_t submeshCount() const;
 		inline SubMesh* submesh(size_t i = 0) const;
 		inline bool hasSkeleton() const;
-		inline size_t skeletonBoneCount() const;
-		inline Bone*  skeleton() const;
 
 		inline size_t skeletonNodeCount() const;
 		inline SkeletonJointId* skeletonHierarchy() const;
@@ -148,7 +147,6 @@ namespace data {
 		uint32 submeshCount_;
 		uint32 boneCount_;
 		SubmeshArray submeshes_;
-		Bone* skeleton_;
 
 		SkeletonJointId* skeletonHierarchy_;
 		Transformation3D* skeletonLocalTransforms_;
@@ -161,12 +159,6 @@ namespace data {
 	}
 	inline bool Mesh::hasSkeleton() const {
 		return boneCount_!=0;
-	}
-	inline size_t Mesh::skeletonBoneCount() const {
-		return size_t(boneCount_);
-	}
-	inline Bone*  Mesh::skeleton() const {
-		return skeleton_;
 	}
 	inline size_t Mesh::skeletonNodeCount() const {
 		return size_t(boneCount_);

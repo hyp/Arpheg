@@ -11,9 +11,12 @@ namespace intermediate {
 	struct Mesh {
 		uint32 indexSize;
 		core::Bytes vertices,indices;
+		::data::SubMesh::Joint* joints;
 
 		Mesh();
 	};
+
+
 	struct Material {
 		vec3f diffuse,specular,emmisive,ambient;
 		float shininess;
@@ -47,12 +50,8 @@ namespace mesh {
 		};
 
 		void load(core::Allocator* allocator,const char* name,const Options& options = Options());
-
-		virtual void processMesh(const Mesh& mesh,uint32 vertexFormat,const Material* material = nullptr) = 0;
 		
-		virtual void processSkeleton(uint32 boneCount,const Bone* bones);
-		
-		virtual void processMesh(const ::data::Mesh& mesh,uint32 vertexFormat) = 0;
+		virtual void processMesh(const Mesh* submeshes,const ::data::Mesh& mesh,uint32 vertexFormat) = 0;
 		virtual void processSkeletalAnimation(const char* name,const animation::Animation& animation);
 	};
 } } }

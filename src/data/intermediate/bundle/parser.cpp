@@ -68,62 +68,59 @@ void Mesh::end(){
 
 		Reader() : animationId(0) {}
 
-		void processMesh(const ::data::Mesh& mesh,uint32 vertexFormat) {
+		void processMesh(const intermediate::Mesh* submeshes,const ::data::Mesh& mesh,uint32 vertexFormat) {
 			
+			size_t arrayExtras = mesh.submeshCount() < 2? 0 : sizeof(::data::SubMesh*)*mesh.submeshCount();
+			auto destMesh = service->allocateObject<::data::Mesh>(arrayExtras + sizeof(SubMesh)*mesh.submeshCount() +
+				mesh.skeletonNodeCount()*(sizeof(::data::Mesh::SkeletonJointId)+sizeof(::data::Transformation3D)) + 
+				mesh.skeletonNodeCount()? alignof(::data::Transformation3D) : 0);
+			uint8* ptr = (uint8*)(destMesh+1);
+			::data::Mesh::SkeletonJointId* destParentIds = nullptr;
+			::data::Transformation3D* destLocalTransformations = nullptr;
+			if(mesh.skeletonNodeCount()){
+				destParentIds = (::data::Mesh::SkeletonJointId*) ptr;
+				memcpy(destParentIds,mesh.skeletonHierarchy_,sizeof(::data::Mesh::SkeletonJointId)*mesh.skeletonNodeCount());
+				ptr+=sizeof(::data::Mesh::SkeletonJointId)*mesh.skeletonNodeCount();
+				ptr = (uint8*)core::memory::align_forward(ptr,alignof(::data::Transformation3D));
+				destLocalTransformations = (::data::Transformation3D*)ptr;
+				memcpy(destLocalTransformations,mesh.skeletonLocalTransforms_,sizeof(::data::Transformation3D)*mesh.skeletonNodeCount());
+				ptr+=sizeof(::data::Transformation3D)*mesh.skeletonNodeCount();
+			}
+			auto destArray = (::data::SubMesh**)ptr;ptr+=arrayExtras;
+			auto destSubmeshes = (::data::SubMesh*) ptr;
+			
+			assert((uintptr_t(destSubmeshes) % alignof(::data::SubMesh)) == 0);
+			
+			for(size_t i = 0;i< mesh.submeshCount();++i){
+				auto rendering = services::rendering();
+				auto vertexBuffer = rendering->create(rendering::Buffer::Vertex,false,submeshes[i].vertices.length(),submeshes[i].vertices.begin);
+				auto indexBuffer  = rendering->create(rendering::Buffer::Index,false,submeshes[i].indices.length(),submeshes[i].indices.begin);
+				rendering::VertexDescriptor vd;
+				if(vertexFormat & Options::VertexWeights){
+					//position,normal,texcoord,bone weights
+					static core::TypeDescriptor posNTW[4] = { { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,2 } , { core::TypeDescriptor::TFloat,4 } };
+					vd.fields = posNTW;
+					vd.count = 4;
+				} else {
+					vd = rendering::VertexDescriptor::positionAs3Float_normalAs3Float_texcoordAs2Float();
+				}
+				auto m = rendering->create(vertexBuffer,indexBuffer,vd);
+				auto count = submeshes[i].indices.length()/submeshes[i].indexSize;
 
-		}
-		void processMesh(const intermediate::Mesh& mesh,uint32 vertexFormat,const intermediate::Material* material){
-			//bool hasSkeleton = !mesh.bones.empty();
-
-			auto rendering = services::rendering();
-			auto vertexBuffer = rendering->create(rendering::Buffer::Vertex,false,mesh.vertices.length(),mesh.vertices.begin);
-			auto indexBuffer  = rendering->create(rendering::Buffer::Index,false,mesh.indices.length(),mesh.indices.begin);
-			rendering::VertexDescriptor vd;
-			if(vertexFormat & Options::VertexWeights){
-				//position,normal,texcoord,bone weights
-				static core::TypeDescriptor posNTW[4] = { { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TFloat,2 } , { core::TypeDescriptor::TFloat,4 } };
-				vd.fields = posNTW;
-				vd.count = 4;
+				new(destSubmeshes + i) ::data::SubMesh(m,0,count,submeshes[i].indexSize,rendering::topology::Triangle);
+				destSubmeshes[i].skeletonJoints_ = submeshes[i].joints;
+			}
+			
+			if(mesh.submeshCount() < 2){
+				new(destMesh) ::data::Mesh(destSubmeshes);
 			} else {
-				vd = rendering::VertexDescriptor::positionAs3Float_normalAs3Float_texcoordAs2Float();
+				for(size_t i = 0;i< mesh.submeshCount();++i) destArray[i] = destSubmeshes + i;
+				new(destMesh) ::data::Mesh(destArray,mesh.submeshCount());
 			}
-			auto m = rendering->create(vertexBuffer,indexBuffer,vd);
-			auto count = mesh.indices.length()/mesh.indexSize;
-
-			//Create a mesh object with one submesh
-			destMesh = service->allocateObject<::data::Mesh>(sizeof(SubMesh));
-			auto submesh = (::data::SubMesh*)(destMesh+1);
-			assert((uintptr_t(submesh) % alignof(::data::SubMesh)) == 0);
-			new(destMesh) ::data::Mesh(submesh);
-			new(submesh) ::data::SubMesh(m,0,count,sizeof(uint16),rendering::topology::Triangle);
+			destMesh->boneCount_ = mesh.boneCount_;
+			destMesh->skeletonHierarchy_ = destParentIds;
+			destMesh->skeletonLocalTransforms_ = destLocalTransformations;
 			service->mapPointerToID(bundle,destMesh,self->id);
-
-			//Register imported data
-			service->renderingBuffer(vertexBuffer);
-			service->renderingBuffer(indexBuffer);
-			service->renderingMesh(m);
-
-		}
-		void processSkeleton(uint32 boneCount,const Bone* bones){
-			//Attach the skeleton to the mesh
-			assert(destMesh);
-			for(uint32 i = 0;i<boneCount;++i){
-				core::bufferStringStream::Formatter fmt;
-				core::bufferStringStream::printf(fmt.allocator,"Bone[%d] = parent %d, transform(%f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f), offset(%f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f, %f,%f,%f,%f)",i,bones[i].parentId,
-					bones[i].transform.a.x,bones[i].transform.a.y,bones[i].transform.a.z,bones[i].transform.a.w,
-					bones[i].transform.b.x,bones[i].transform.b.y,bones[i].transform.b.z,bones[i].transform.b.w,
-					bones[i].transform.c.x,bones[i].transform.c.y,bones[i].transform.c.z,bones[i].transform.c.w,
-					bones[i].transform.d.x,bones[i].transform.d.y,bones[i].transform.d.z,bones[i].transform.d.w,
-					bones[i].offset.a.x,bones[i].offset.a.y,bones[i].offset.a.z,bones[i].offset.a.w,
-					bones[i].offset.b.x,bones[i].offset.b.y,bones[i].offset.b.z,bones[i].offset.b.w,
-					bones[i].offset.c.x,bones[i].offset.c.y,bones[i].offset.c.z,bones[i].offset.c.w,
-					bones[i].offset.d.x,bones[i].offset.d.y,bones[i].offset.d.z,bones[i].offset.d.w);
-				services::logging()->trace(core::bufferStringStream::asCString(fmt.allocator));
-			}
-			auto destBones = service->allocateObject<Bone>(sizeof(Bone)*(boneCount-1));
-			memcpy(destBones,bones,(boneCount)*sizeof(Bone));
-			destMesh->boneCount_ = boneCount;
-			destMesh->skeleton_ = destBones;
 		}
 		void processSkeletalAnimation(const char* name,const animation::Animation& animation) {
 

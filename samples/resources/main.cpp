@@ -12,6 +12,7 @@
 #include "../../src/ui/components.h"
 #include "../../src/ui/widget.h"
 #include "../../src/rendering/softwareOcclusion/softwareOcclusion.h"
+#include "../../src/rendering/animation.h"
 #include "../../src/application/profiling.h"
 
 int main(){
@@ -51,7 +52,8 @@ int main(){
 	
 
 	data->loadBundle(ARPHEG_ROOT_PATH "data/sample.txt","data");	
-	auto mesh    = data->submesh ("head");
+	auto mesh    = data->mesh("head");
+	auto animation = data->animation("head.animation.0");
 	auto program = data->pipeline("default");
 	auto texture = data->texture2D("crate");
 	auto font    = data->font("font");
@@ -70,7 +72,8 @@ int main(){
 	application::profiling::Timer profRasterizeTiles("Rasterize Tiles");
 	application::profiling::Timer profQuery("Query occlusion");
 
-	float cam = 2.0f;
+	float cam = 60.f;
+	float anim = 0.f;
 
 	while(!services::application()->quitRequest()){
 		services::preStep();
@@ -79,10 +82,10 @@ int main(){
 		renderer->clear(vec4f(0.8,0.8,0.8,1));
 		
 		if(services::input()->isPressed(input::keyboard::Up)){
-			cam-=0.2f*services::timing()->dt();
+			cam-=1.6f*services::timing()->dt();
 		}
 		if(services::input()->isPressed(input::keyboard::Down)){
-			cam+=0.2f*services::timing()->dt();
+			cam+=1.6f*services::timing()->dt();
 		}
 
 		rendering::Viewport viewport;
@@ -128,8 +131,26 @@ int main(){
 
 
 		//vis = depthBuffer.testAABB(vec3f(0.5,1.5,1.5),vec3f(0.75,1.75,1.75));
-		renderer->bind(mesh->mesh(),mesh->primitiveKind(),mesh->indexSize());
-		renderer->drawIndexed(mesh->primitiveOffset(),mesh->primitiveCount());
+		auto animator = services::animation();
+		auto nodes = animator->transformationBuffer().allocate(mesh->skeletonNodeCount());
+		anim+=services::timing()->dt();
+		rendering::animation::Animator::animate(mesh,animation,anim,nodes);
+		
+		rendering::Pipeline::Constant c("boneMatrices");
+		for(size_t i = 0;i<mesh->submeshCount();++i){
+			auto submesh = mesh->submesh(i);
+
+			auto bones = animator->transformationBuffer().allocate(mesh->skeletonNodeCount());
+			rendering::animation::Animator::bindSkeleton(submesh,mesh->skeletonNodeCount(),nodes,bones);
+			renderer->bind(c,(void*)bones);
+			
+			renderer->bind(submesh->mesh(),submesh->primitiveKind(),submesh->indexSize());
+			renderer->drawIndexed(submesh->primitiveOffset(),submesh->primitiveCount());
+		}
+		
+		
+
+
 
 		auto debugRenderer = services::debugRendering();
 		debugRenderer->viewProjectionMatrix(pv);

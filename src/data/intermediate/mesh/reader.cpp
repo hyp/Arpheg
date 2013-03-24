@@ -5,6 +5,7 @@
 
 #if !defined(ARPHEG_RESOURCES_NO_FORMATTED) && !defined(ARPHEG_PLATFORM_MOBILE)
 
+#include <vector>
 #include <map>
 #include <algorithm>
 
@@ -27,12 +28,13 @@
 namespace data {
 namespace intermediate {
 
+
 void Material::release(core::Allocator* allocator){
 	for(uint32 i = 0; i <kMaxTextures;++i){
 		if(textureFiles[i]) allocator->deallocate((void*)textureFiles[i]);
 	}
 }
-Mesh::Mesh() : vertices(nullptr,nullptr),indices(nullptr,nullptr) {
+Mesh::Mesh() : vertices(nullptr,nullptr),indices(nullptr,nullptr),joints(nullptr) {
 	indexSize = 0;
 }
 
@@ -47,12 +49,6 @@ static void convertMatrix(mat44f* dest,const aiMatrix4x4& matrix){
 	*dest = mat44f(vec4f(matrix.a1,matrix.a2,matrix.a3,matrix.a4),vec4f(matrix.b1,matrix.b2,matrix.b3,matrix.b4),
 		vec4f(matrix.c1,matrix.c2,matrix.c3,matrix.c4),vec4f(matrix.d1,matrix.d2,matrix.d3,matrix.d4));
 	dest->transposeSelf();
-}
-static void convertMatrix2(mat44f* dest,const aiMatrix4x4& matrix){
-	//NB we need column major matrices so do transpose.
-	*dest = mat44f(vec4f(matrix.a1,matrix.a2,matrix.a3,matrix.a4),vec4f(matrix.b1,matrix.b2,matrix.b3,matrix.b4),
-		vec4f(matrix.c1,matrix.c2,matrix.c3,matrix.c4),vec4f(matrix.d1,matrix.d2,matrix.d3,matrix.d4));
-	//dest->transposeSelf();
 }
 
 struct Scene;
@@ -185,69 +181,60 @@ struct Scene {
 	const aiScene* scene;
 	MeshImporter* importer;
 	core::Allocator* allocator;
-	core::BufferAllocator subMeshes;
 
-	std::map<const aiBone*,uint32> skeletonBoneMapping;
-	std::map<const aiNode*,uint32> skeletonNodeMapping;
-	Bone* skeletonBones;
-	size_t skeletonBoneCount;
-
-	const aiNode* singleNode;
-	aiMatrix4x4 singleNodeTransformInverse;
-	
-	uint32 indexOffset;
-	size_t mergedVertexBufferSize;
-	size_t mergedIndexBufferSize;
-	uint8 storageForImporter[MeshImporter::kMaxSizeof];
-	Material mat;
-
-	::data::Mesh resultingMesh;
-
-	Scene(core::Allocator* allocator);
-	~Scene();
-	Mesh importIntoOneMesh(const aiScene* scene);
-	void recursiveImportIntoOneMesh(aiNode* node,aiMatrix4x4 transform);
-	void recursiveImportBoneNode(const aiNode* node,const aiNode* parent,aiMatrix4x4 transform);
-
-	void selectVertexFormat(const aiMesh* mesh);
-	void importMaterial(const aiMaterial* material);
-	void importMeshVertexWeights(const aiMesh* mesh);
-	void findSkeleton();
-	inline bool hasSkeleton() const { return skeletonBones != nullptr; }
-	const aiNode* findSkeletonNode(const aiString& name);
-	void importSkeletalAnimationTracks();
-};
-Scene::Scene(core::Allocator* allocator) : subMeshes(sizeof(Mesh)*64,allocator,core::BufferAllocator::GrowOnOverflow) {
-	importer = nullptr;
-	this->allocator = allocator;
-	scene = nullptr;
-	skeletonBones = nullptr;
-}
-Scene::~Scene() {
-	if(skeletonBones) allocator->deallocate(skeletonBones);
-}
-void Scene::findSkeleton() {
-	
+	std::vector<Mesh> submeshes;
 	struct BoneNode {
 		int depth;
 		const aiBone* bone;
 		const aiNode* self;
 	};
+	std::vector<BoneNode> boneNodes;
+	std::map<const aiNode*,uint32> skeletonNodeMapping;
+	::data::Mesh resultingMesh;
+	
+	uint8 storageForImporter[MeshImporter::kMaxSizeof];
+	Material mat;
+
+	
+
+	Scene(core::Allocator* allocator);
+	~Scene();
+	void importIntoOneMesh(const aiScene* scene);
+	void recursiveImport(aiNode* node,aiMatrix4x4 transform);
+
+	void selectVertexFormat(const aiMesh* mesh);
+	void importMaterial(const aiMaterial* material);
+	::data::SubMesh::Joint* importMeshBones(const aiMesh* mesh);
+	void extractSkeleton();
+	inline bool hasSkeleton() const { return resultingMesh.hasSkeleton(); }
+	const aiNode* findSkeletonNode(const aiString& name);
+	void importSkeletalAnimationTracks();
+};
+Scene::Scene(core::Allocator* allocator) : resultingMesh(nullptr) {
+	importer = nullptr;
+	this->allocator = allocator;
+	scene = nullptr;
+}
+Scene::~Scene() {
+	//if(skeletonBones) allocator->deallocate(skeletonBones);
+	if(resultingMesh.skeletonHierarchy_) allocator->deallocate(resultingMesh.skeletonHierarchy_);
+	if(resultingMesh.skeletonLocalTransforms_) allocator->deallocate(resultingMesh.skeletonLocalTransforms_);
+}
+void Scene::extractSkeleton() {
+	
 	struct Util {
+		std::vector<BoneNode>& boneNodes;
 		const aiScene* scene;
-		Scene* importer;
 		const aiNode* skeletonRootNode;
 		int skeletonRootDepth;
 		bool skeletonNeedsRoot;
 		aiMatrix4x4 skeletonRootTransform;
-		core::BufferAllocator boneNodes;
 		uint32 boneCount;
 
-		Util() : boneNodes(sizeof(BoneNode)*128,nullptr,core::BufferAllocator::GrowOnOverflow) {}
-
+		Util(std::vector<BoneNode>& nodes) : boneNodes(nodes) {}
 
 		void recursiveImportBoneNode(const aiNode* node,const aiNode* parent,int depth = 0) {
-			//Find the bone for this node.
+			//Find any bone for this node.
 			const aiBone* bone = nullptr;
 			for(uint32 i = 0;i<scene->mNumMeshes;++i){
 				auto mesh = scene->mMeshes[i];
@@ -255,16 +242,17 @@ void Scene::findSkeleton() {
 				for(uint32 j = 0;j < mesh->mNumBones;++j){
 					if(mesh->mBones[j]->mName == node->mName){
 						bone = mesh->mBones[j];
+						break;
 					}
 				}
+				if(bone) break;
 			}
 
-			auto dest= core::bufferArray::allocate<BoneNode>(boneNodes);
-			dest->depth = depth;
-			dest->bone = bone;
-			dest->self = node;
-			if(bone) boneCount++;
+			BoneNode result;result.depth = depth;result.bone = bone;result.self = node;
+			boneNodes.push_back(result);
+
 			if(bone){
+				boneCount++; 
 				if(skeletonRootDepth > depth){
 					skeletonRootNode = node;
 					skeletonRootDepth = depth;
@@ -285,7 +273,7 @@ void Scene::findSkeleton() {
 					return a.depth < b.depth;
 				}
 			};
-			std::sort(begin<BoneNode>(boneNodes),end<BoneNode>(boneNodes),Predicate());
+			std::sort(boneNodes.begin(),boneNodes.end(),Predicate());
 		}
 		aiMatrix4x4 globalTransform(const aiNode* node){
 			return node?  node->mTransformation * globalTransform(node->mParent): aiMatrix4x4() ;
@@ -304,27 +292,15 @@ void Scene::findSkeleton() {
 			}
 			sortBoneNodes();
 		}
-		BoneNode* findBoneNode(const aiBone* bone){
-			auto begin = core::bufferArray::begin<BoneNode>(boneNodes);
-			for(size_t i = 0;i<core::bufferArray::length<BoneNode>(boneNodes);++i){
-				if(begin[i].bone == bone) return begin + i;
-			}
-			return nullptr;
-		}
 	};
-	Util util;util.scene = scene;util.importer = this;
-
+	Util util(boneNodes);util.scene = scene;
 	util.importBoneNode(scene->mRootNode);
-	skeletonBones = nullptr;
 	if(!util.boneCount) return;
-	auto totalBoneCount = core::bufferArray::length<BoneNode>(util.boneNodes);
-	auto boneNodes = core::bufferArray::begin<BoneNode>(util.boneNodes);
+	auto totalBoneCount = boneNodes.size();
 
 	//Create the skeleton
-	Bone* destBones = (Bone*)allocator->allocate(sizeof(Bone)*totalBoneCount,alignof(Bone));
-
 	assertRelease(totalBoneCount <= ::data::Mesh::kMaxSkeletonNodes);
-	auto destParentIds = (::data::Mesh::SkeletonJointId*) allocator->allocate(sizeof(::data::Mesh::SkeletonJointId)*totalBoneCount,alignof(::data::Mesh::SkeletonJointId));
+	auto destParentIds = (::data::Mesh::SkeletonJointId*) allocator->allocate(sizeof(::data::Mesh::SkeletonJointId)*totalBoneCount);
 	auto destLocalTransforms = (::data::Transformation3D*)allocator->allocate(sizeof(::data::Transformation3D)*totalBoneCount,alignof(::data::Transformation3D));
 	resultingMesh.boneCount_ = totalBoneCount;
 	resultingMesh.skeletonHierarchy_ =  destParentIds;
@@ -332,13 +308,6 @@ void Scene::findSkeleton() {
 
 	//Convert the nodes.
 	for(size_t i = 0;i<totalBoneCount;++i){
-		//Compute the offset matrix.
-		if(boneNodes[i].bone){
-			convertMatrix(&destBones[i].offset,boneNodes[i].bone->mOffsetMatrix);
-		}
-		else destBones[i].offset = mat44f::identity();
-		//Transformation matrix.
-		convertMatrix(&destBones[i].transform,boneNodes[i].self->mTransformation);
 		//Find parent id.
 		uint32 parentId = 0;
 		for(parentId = 0;parentId < i;parentId++){
@@ -346,34 +315,23 @@ void Scene::findSkeleton() {
 		}
 		if(parentId == i){
 			assertRelease(i == 0 && "Only the root bone must be without parent!");
-			destBones[i].parentId = 0;
+			parentId = 0;
 		}
-		else destBones[i].parentId = parentId;
 
 		destParentIds[i] = ::data::Mesh::SkeletonJointId(parentId);
 		convertMatrix(&destLocalTransforms[i],boneNodes[i].self->mTransformation);
 		skeletonNodeMapping[boneNodes[i].self] = uint32(i);
-		
-		//Map the nodes and bones to ids.
-		if(boneNodes[i].bone) skeletonBoneMapping[boneNodes[i].bone] = uint32(i);
 	}
 
 	//Verify that the bones are sorted hierachily.
 	for(size_t i = 1;i <totalBoneCount;++i){
-		assertRelease(destBones[i].parentId < i);
 		assertRelease(destParentIds[i] < i);
 	}
 
 	//Extract the global bind pose.
 	//auto m_GlobalInverseTransform = scene->mRootNode->mTransformation;
 	//m_GlobalInverseTransform.Inverse();
-	//convertMatrix(&destBones[0].offset,m_GlobalInverseTransform);//util.skeletonRootTransform);
-
-
-
-	skeletonBones= destBones;
-	skeletonBoneCount = totalBoneCount;
-	
+	//convertMatrix(&destBones[0].offset,m_GlobalInverseTransform);//util.skeletonRootTransform);	
 }
 void Scene::importMaterial(const aiMaterial* material) {
 	aiString name;
@@ -458,7 +416,107 @@ void Scene::selectVertexFormat(const aiMesh* mesh){
 	assert(importer);
 	importer->allocator = allocator;//NB: set allocator on creation field.
 }
+::data::SubMesh::Joint* Scene::importMeshBones(const aiMesh* mesh){
+	if(!hasSkeleton()) return nullptr;
+	if(!mesh->HasBones()){
+		services::logging()->error("A scene contains a skeleton but a mesh has no bones!");
+		return nullptr;
+	}
 
+	//Joints
+	std::map<const aiBone*,uint32> skeletonBoneMapping;
+
+	struct Util {
+		std::vector<BoneNode>& boneNodes;
+
+		Util(std::vector<BoneNode>& nodes) : boneNodes(nodes) {}
+		const aiBone* findBone(const aiMesh* mesh,const aiNode* node) {
+			for(uint32 j = 0;j < mesh->mNumBones;++j){
+				if(mesh->mBones[j]->mName == node->mName)
+					return mesh->mBones[j];
+			}
+			for (uint32 i = 0; i < node->mNumChildren; ++i) {
+				if(auto bone = findBone (mesh,node->mChildren[i])) return bone;
+			}
+			return nullptr;
+		}
+	};
+	Util util(boneNodes);
+	
+	auto totalBoneCount = boneNodes.size();
+	auto destJoints = (::data::SubMesh::Joint*) allocator->allocate(sizeof(::data::SubMesh::Joint)*totalBoneCount,alignof(::data::SubMesh::Joint));
+	for(size_t i =0;i<boneNodes.size();++i){
+		auto bone = util.findBone(mesh,boneNodes[i].self);
+		if(bone){
+			convertMatrix(&destJoints[i],bone->mOffsetMatrix);
+			skeletonBoneMapping[bone] = uint32(i);
+		} else {
+			destJoints[i] = ::data::Transformation3D::identity();
+		}
+	}
+
+	//Weights.
+	importer->clearVertexWeights(mesh);
+	
+	//Allocate weights info
+	uint8* vertexWeightCount = (uint8*)allocator->allocate(mesh->mNumVertices);
+	memset(vertexWeightCount,0,mesh->mNumVertices);	
+
+	for(uint32 i = 0;i <mesh->mNumBones;++i){
+		auto bone = mesh->mBones[i];
+
+		for(uint32 j = 0;j < bone->mNumWeights;++j){
+			auto vertexId = bone->mWeights[j].mVertexId;
+			auto weight = bone->mWeights[j].mWeight;
+			assertRelease(weight>= 0.0f && weight <= 1.0f);
+			if(vertexWeightCount[vertexId] >= options.maxBonesPerVertex){
+				services::logging()->warning("A vertex has more bone weights than the limit allows");
+				continue;
+			}
+			auto boneId = skeletonBoneMapping[bone];
+			importer->setVertexWeight(vertexId,vertexWeightCount[vertexId],weight,int(boneId));
+			vertexWeightCount[vertexId]++;
+		}
+	}
+
+	allocator->deallocate(vertexWeightCount);
+
+	return destJoints;
+}
+void Scene::recursiveImport(aiNode* node,aiMatrix4x4 transform) {
+	//Node's transformation matrix
+	auto matrix = hasSkeleton() ? aiMatrix4x4() : transform*node->mTransformation;
+	
+	if(node->mNumMeshes){
+		for(uint32 i = 0;i<node->mNumMeshes;++i){
+			Mesh target;
+			importer->dest = &target;
+			importer->importVertices(scene->mMeshes[node->mMeshes[i]],matrix);
+			importer->importIndices (scene->mMeshes[node->mMeshes[i]]);
+			target.joints = importMeshBones(scene->mMeshes[node->mMeshes[i]]);
+			submeshes.push_back(target);
+		}
+	}
+
+	for (uint32 i = 0; i < node->mNumChildren; ++i) 
+		recursiveImport (node->mChildren[i],matrix);
+}
+void Scene::importIntoOneMesh(const aiScene* scene){
+	this->scene = scene;
+
+	//Result
+	resultingMesh.submeshCount_ = 0;
+	resultingMesh.boneCount_ = 0;
+	resultingMesh.skeletonHierarchy_ =  nullptr;
+	resultingMesh.skeletonLocalTransforms_ = nullptr;
+	
+	extractSkeleton();
+	selectVertexFormat(scene->mMeshes[0]);
+	recursiveImport(scene->mRootNode,aiMatrix4x4());
+	if(scene->HasAnimations() && hasSkeleton()) importSkeletalAnimationTracks();
+	resultingMesh.submeshCount_ = submeshes.size();
+	reader->processMesh(&submeshes[0],resultingMesh,hasSkeleton()? Reader::Options::VertexWeights : 0);
+}
 const aiNode* Scene::findSkeletonNode(const aiString& name) {
 	for(auto i = skeletonNodeMapping.begin();i != skeletonNodeMapping.end();++i){
 		if(i->first->mName == name) return i->first;
@@ -471,7 +529,6 @@ struct KeyPred {
 		return a.time < b.time;
 	}
 };
-
 void Scene::importSkeletalAnimationTracks() {
 	for(uint32 i = 0;i<scene->mNumAnimations;++i){
 		auto animation = scene->mAnimations[i];
@@ -544,137 +601,13 @@ void Scene::importSkeletalAnimationTracks() {
 		for(uint32 i = 0;i < destAnimation.trackCount;++i){
 			if(auto ptr = destAnimation.tracks[i].positionKeys) allocator->deallocate(ptr);
 			if(auto ptr = destAnimation.tracks[i].rotationKeys) allocator->deallocate(ptr);
-			if(auto ptr = destAnimation.tracks[i].rotationKeys) allocator->deallocate(ptr);
+			if(auto ptr = destAnimation.tracks[i].scalingKeys) allocator->deallocate(ptr);
 		}
 		allocator->deallocate(destAnimation.tracks);	
 	}
 }
-void Scene::importMeshVertexWeights(const aiMesh* mesh){
-	if(!hasSkeleton()) return;
 
-	importer->clearVertexWeights(mesh);
-	
-	//Allocate weights info
-	uint8* vertexWeightCount = (uint8*)allocator->allocate(mesh->mNumVertices);
-	memset(vertexWeightCount,0,mesh->mNumVertices);	
 
-	for(uint32 i = 0;i <mesh->mNumBones;++i){
-		auto bone = mesh->mBones[i];
-
-		for(uint32 j = 0;j < bone->mNumWeights;++j){
-			auto vertexId = bone->mWeights[j].mVertexId;
-			auto weight = bone->mWeights[j].mWeight;
-			assertRelease(weight>= 0.0f && weight <= 1.0f);
-			if(vertexWeightCount[vertexId] >= options.maxBonesPerVertex){
-				services::logging()->warning("A vertex has more bone weights than the limit allows");
-				continue;
-			}
-			auto boneId = skeletonBoneMapping[bone];
-			importer->setVertexWeight(vertexId,vertexWeightCount[vertexId],weight,int(boneId));
-			vertexWeightCount[vertexId]++;
-		}
-	}
-
-	allocator->deallocate(vertexWeightCount);
-}
-Mesh Scene::importIntoOneMesh(const aiScene* scene){
-	singleNode = nullptr;
-	skeletonBones = nullptr;
-	this->scene = scene;
-	//Find(if any) animation skeletons and extract required boneNodes
-	findSkeleton();
-	//Select the vertex format.
-	selectVertexFormat(scene->mMeshes[0]);
-	//Import the material
-	uint32 materialCount = scene->mNumMaterials;
-	if(materialCount > 1){
-		services::logging()->resourceError("Can't import a mesh as a single mesh with more than one material","");
-	} if(materialCount){
-		importMaterial(scene->mMaterials[0]);
-	}
-	//Start from the 0th index
-	indexOffset = 0;
-	mergedVertexBufferSize = mergedIndexBufferSize = 0;
-	//Import all submeshes
-	recursiveImportIntoOneMesh(scene->mRootNode,aiMatrix4x4());
-	if(singleNode && hasSkeleton()){
-		//convertMatrix(&skeletonBones[0].offset,singleNodeTransformInverse);
-	}
-	//Import any skeletal animations
-	if(scene->HasAnimations() && hasSkeleton()){
-		if(!singleNode){
-			services::logging()->resourceError("Can't import a scene as a single mesh with animation because it has multiple nodes","");
-		}
-		else importSkeletalAnimationTracks();
-	}
-
-	//Merge the submeshes into one mesh
-	Mesh result;
-	result.vertices.begin = (uint8*)allocator->allocate(mergedVertexBufferSize,alignof(vec4f));
-	result.vertices.end   = result.vertices.begin + mergedVertexBufferSize;
-
-	if(indexOffset <= std::numeric_limits<uint16>::max()){
-		result.indexSize = sizeof(uint16);
-		mergedIndexBufferSize /= 2;
-	}
-	else result.indexSize = sizeof(uint32);
-	result.indices.begin = (uint8*)allocator->allocate(mergedIndexBufferSize,alignof(vec4f));
-	result.indices.end   = result.indices.begin + mergedIndexBufferSize;
-
-	auto vs  = result.vertices.begin;
-	auto ids = result.indices.begin;
-	for(Mesh* i = core::bufferArray::begin<Mesh>(subMeshes),*end = core::bufferArray::end<Mesh>(subMeshes);i<end;++i){
-		
-		//Copy vertices
-		memcpy(vs,i->vertices.begin,i->vertices.length());
-		vs+=i->vertices.length();
-		allocator->deallocate(i->vertices.begin);
-
-		//Copy indices
-		if(result.indexSize == sizeof(uint32)){
-			memcpy(ids,i->indices.begin,i->indices.length());
-			ids+=i->indices.length();
-		} else{
-			for(uint32* j = (uint32*)i->indices.begin,*jend = (uint32*)(i->indices.end);j<jend;++j){
-				*((uint16*)ids) = *j;
-				ids+=sizeof(uint16);
-			}
-		}
-		allocator->deallocate(i->indices.begin);
-
-	}
-	return result;
-}
-void Scene::recursiveImportIntoOneMesh(aiNode* node,aiMatrix4x4 transform) {
-	//Node's transformation matrix
-	auto matrix = aiMatrix4x4();//transform*node->mTransformation;
-	
-	if(node->mNumMeshes){
-		if(!singleNode){
-			singleNode= node;
-			singleNodeTransformInverse = matrix;
-			singleNodeTransformInverse.Inverse();
-		}
-		else singleNode = nullptr;
-
-		for(uint32 i = 0;i<node->mNumMeshes;++i){
-			importer->dest = core::bufferArray::allocate<Mesh>(subMeshes);
-			importer->importVertices(scene->mMeshes[node->mMeshes[i]],matrix);
-			importer->importIndices (scene->mMeshes[node->mMeshes[i]],indexOffset);
-			importMeshVertexWeights(scene->mMeshes[node->mMeshes[i]]);
-			indexOffset += scene->mMeshes[node->mMeshes[i]]->mNumVertices;
-
-			mergedVertexBufferSize += importer->dest->vertices.length();
-			mergedIndexBufferSize  += importer->dest->indices.length();
-		}
-	}
-
-	for (uint32 i = 0; i < node->mNumChildren; ++i) 
-		recursiveImportIntoOneMesh (node->mChildren[i],matrix);
-}
-
-void Reader::processSkeleton(uint32 boneCount,const Bone* bones) {
-}
 void Reader::processSkeletalAnimation(const char* name,const animation::Animation& track){
 }
 void Reader::load(core::Allocator* allocator,const char* name,const Options& options){
@@ -711,12 +644,8 @@ void Reader::load(core::Allocator* allocator,const char* name,const Options& opt
 		return;
 	}
 	Scene doImport(allocator);doImport.reader = this;doImport.options = options;
-	auto result = doImport.importIntoOneMesh(scene);
-	processMesh(result,doImport.hasSkeleton()? Options::VertexWeights : 0,&doImport.mat);
-	if(doImport.hasSkeleton())
-		processSkeleton(doImport.skeletonBoneCount,doImport.skeletonBones);
-	allocator->deallocate(result.vertices.begin);
-	allocator->deallocate(result.indices.begin);
+	doImport.importIntoOneMesh(scene);
+
 }
 
 } } }

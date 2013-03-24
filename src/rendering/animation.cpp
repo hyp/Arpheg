@@ -124,46 +124,6 @@ inline Transformation3D Animator::calculateLocalTransformation(const data::anima
 	return mat44f::translateRotateScale(position,rotation,scaling);
 }
 
-void Animator::animate(const data::animation::Animation* animation,size_t boneCount,const data::Bone* bones,mat44f* final,float& time,const mat44f* bindPose){
-	assert(boneCount < kMaxNodes);
-	if(!boneCount) return;
-	
-	TouchedNodeMask touchedNodesMask;
-	auto localTime = calculateLocalTime(animation,time);
-
-	for(size_t i = 0;i<size_t(animation->trackCount);++i){
-		auto track = animation->tracks + i;
-		final[track->nodeId] = calculateLocalTransformation(track,localTime);
-		touchedNodesMask.mark(size_t(track->nodeId));
-	}
-
-	//Get the base local transforms for nodes which aren't animated.
-	//Compute the global transformation for each node.
-	//NB: assumes that the bones are sorted and the hirearchy is processed correctly
-	if(touchedNodesMask.isNotTouched(0))
-		final[0] = bones[0].transform;
-	for(size_t i = 1;i<boneCount;++i){
-		//assert(bones[i].parentId < i);
-		if(touchedNodesMask.isNotTouched(i)) final[i] = final[bones[i].parentId] * bones[i].transform;
-		else final[i] = final[bones[i].parentId] * final[i];
-	}
-
-	//Calculate the final matrix taking bind pose into account.
-	//bindPose = &bones[0].offset;
-	if(bindPose){
-		for(size_t i = 1;i<boneCount;++i){
-			final[i] = final[i] * (bones[i].offset * (*bindPose)) ;////(final[i] * bones[i].offset) * (*bindPose);//( ((*bindPose) * bones[i].offset) * final[i];
-		}
-	} else {
-		//assert(false);
-		for(size_t i = 1;i<boneCount;++i){
-			final[i] = final[i] * bones[i].offset;
-		}
-	}
-
-	
-}
-
 void Animator::animate(const data::Mesh* mesh,const data::animation::Animation* animation,float& time,Transformation3D* transformations) {
 	size_t nodeCount = mesh->skeletonNodeCount();
 	if(!nodeCount) return; 
@@ -189,7 +149,7 @@ void Animator::animate(const data::Mesh* mesh,const data::animation::Animation* 
 		else transformations[i] = transformations[parentIds[i]] * transformations[i];
 	}
 }
-inline void Animator::bindSkeleton(const data::SubMesh* submesh,size_t nodeCount,const Transformation3D* skeletonTransformations,JointTransformation3D* jointTransformations) {
+void Animator::bindSkeleton(const data::SubMesh* submesh,size_t nodeCount,const Transformation3D* skeletonTransformations,JointTransformation3D* jointTransformations) {
 	auto bindPoses = submesh->skeletonJoints();
 	for(size_t i = 1;i<nodeCount;++i){
 		jointTransformations[i] = skeletonTransformations[i] * bindPoses[i];
