@@ -7,7 +7,7 @@
 
 namespace ui {
 
-Widget::Widget(vec2f position,vec2f size) : 
+Widget::Widget(vec2i position,vec2i size) : 
 	position_(position),size_(size),state_(StateVisible|StateEnabled),color_(0xFFffFFff),
 	next_(nullptr)
 { 

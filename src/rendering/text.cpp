@@ -55,7 +55,7 @@ core::Bytes extractGlyphs(core::Bytes string,data::Font* font,core::BufferAlloca
 }
 
 // Direct Font glyph rendering
-static void drawGlyph(uint8* vs,uint16* ids,uint16 baseVertex,vec2f min,vec2f max,const data::Font::Glyph::TextureCoordinate* tcoords,uint32 channelMask,uint32 colour,uint32 outlineColour){
+static void drawGlyph(uint8* vs,uint16* ids,uint16 baseVertex,vec2i min,vec2i max,const data::Font::Glyph::TextureCoordinate* tcoords,uint32 channelMask,uint32 colour,uint32 outlineColour){
 	//20*4 vertex bytes per glyph
 	draw2D::VertexBuilder builder(vs);
 	builder.put(int16(min.x),int16(min.y)).put(tcoords[0],tcoords[1]).put(channelMask).put(colour).put(outlineColour);
@@ -67,7 +67,7 @@ static void drawGlyph(uint8* vs,uint16* ids,uint16 baseVertex,vec2f min,vec2f ma
 	ids[3] = baseVertex+2;ids[4] = baseVertex+3;ids[5] = baseVertex;
 }
 
-static void drawGlyph(uint8* vs,uint16* ids,uint16 baseVertex,vec2f min,vec2f max,const data::Font::Glyph::TextureCoordinate* tcoords,uint32 channelMask,uint32 colour){
+static void drawGlyph(uint8* vs,uint16* ids,uint16 baseVertex,vec2i min,vec2i max,const data::Font::Glyph::TextureCoordinate* tcoords,uint32 channelMask,uint32 colour){
 	//16*4 vertex bytes per glyph
 	draw2D::VertexBuilder builder(vs);
 	builder.put(int16(min.x),int16(min.y)).put(tcoords[0],tcoords[1]).put(channelMask).put(colour);
@@ -79,20 +79,20 @@ static void drawGlyph(uint8* vs,uint16* ids,uint16 baseVertex,vec2f min,vec2f ma
 	ids[3] = baseVertex+2;ids[4] = baseVertex+3;ids[5] = baseVertex;
 }
 
-void drawGlyphs(batching::Geometry& geometry,vec2f position,const data::Font* font,uint32 colour,uint32 outlineColour,const Glyph* glyphs,uint32 count){
+void drawGlyphs(batching::Geometry& geometry,vec2i position,const data::Font* font,uint32 colour,uint32 outlineColour,const Glyph* glyphs,uint32 count){
 	auto ftype = font->renderingType() & (~fontType::WithDistanceRendering);
 
 	uint32 quadSize = ftype == fontType::Outlined? textOutlinesVertexLayoutDescSize*4: textVertexLayoutDescSize*4;
-	auto xspace = font->spacing_.x;
+	auto xspace = int(font->spacing_.x);
 	uint8* vs = (uint8*) geometry.vertices;
 	for(uint32 i = 0;i < count;++i){
 		auto glyph = glyphs[i].glyph;
-		vec2f min = position + vec2f(float(glyph->xoffset),float(glyph->yoffset)); 
-		vec2f max = min + vec2f(float(glyph->width),float(glyph->height));
+		auto min = position + vec2i(glyph->xoffset,glyph->yoffset); 
+		auto max = min + vec2i(glyph->width,glyph->height);
 		if(ftype == fontType::Outlined)
 			drawGlyph(vs + quadSize*i,geometry.indices+6*i,geometry.indexOffset+4*i,min,max,glyph->textureCoords,0x000000FF,colour,outlineColour);
 		else drawGlyph(vs + quadSize*i,geometry.indices+6*i,geometry.indexOffset+4*i,min,max,glyph->textureCoords,0x000000FF,colour);
-		position.x += float(glyph->xadvance+xspace);
+		position.x += int(glyph->xadvance)+xspace;
 	}
 	geometry.indexOffset+=4*count; //4X vertices were emmited
 	geometry.vertices=(float*)(vs + quadSize*count);

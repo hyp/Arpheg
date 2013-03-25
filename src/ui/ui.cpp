@@ -59,9 +59,9 @@ void Service::drawWidgets() {
 	drawEvent.layerId = 0;
 	drawEvent.renderer = renderer_;
 	drawEvent.glyphExtractionBuffer = &glyphBuffer;
-	drawEvent.position = vec2f(0,0);
+	drawEvent.position = vec2i(0,0);
 	auto size = services::rendering()->context()->frameBufferSize();
-	drawEvent.size = vec2f(float(size.x),float(size.y));
+	drawEvent.size = vec2i(size.x,size.y);
 	Widget widget;
 	widget.addComponent(root_);
 	widget.draw(drawEvent);

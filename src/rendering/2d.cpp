@@ -31,7 +31,7 @@ VertexDescriptor vertexLayout(uint32 m) {
 	return result;
 }
 
-void textured::coloured::quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint16* tcoords,uint32 colour){
+void textured::coloured::quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords,uint32 colour){
 	//12*4 = 48 vertex bytes per quad
 	draw2D::VertexBuilder builder(geometry.vertices);
 	builder.put(int16(min.x),int16(min.y)).put(tcoords[0],tcoords[1]).put(colour);
@@ -47,7 +47,7 @@ void textured::coloured::quad(batching::Geometry& geometry,vec2f min,vec2f max,c
 	geometry.indices += 6;
 	geometry.indexOffset += 4;
 }
-void textured::quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint16* tcoords){
+void textured::quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords){
 	//8*4=36 vertex bytes per quad
 	draw2D::VertexBuilder builder(geometry.vertices);
 	builder.put(int16(min.x),int16(min.y)).put(tcoords[0],tcoords[1]);
@@ -63,7 +63,7 @@ void textured::quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint1
 	geometry.indices += 6;
 	geometry.indexOffset += 4;
 }
-void coloured::quad(batching::Geometry& geometry,vec2f vertices[4],uint32 colours[4]) {
+void coloured::quad(batching::Geometry& geometry,vec2i vertices[4],uint32 colours[4]) {
 	//8*4=36 vertex bytes per quad
 	draw2D::VertexBuilder builder(geometry.vertices);
 	for(uint32 i = 0;i<4;++i){
@@ -78,7 +78,7 @@ void coloured::quad(batching::Geometry& geometry,vec2f vertices[4],uint32 colour
 	geometry.indices += 6;
 	geometry.indexOffset += 4;
 }
-void coloured::quad(batching::Geometry& geometry,vec2f min,vec2f max,uint32 colours[4]) {
+void coloured::quad(batching::Geometry& geometry,vec2i min,vec2i max,uint32 colours[4]) {
 	//8*4=36 vertex bytes per quad
 	draw2D::VertexBuilder builder(geometry.vertices);
 	builder.put(int16(min.x),int16(min.y)).put(colours[0]);

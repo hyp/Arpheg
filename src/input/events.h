@@ -7,7 +7,7 @@ namespace events {
 
 struct Event {};
 struct Mouse: Event {
-	vec2f position;
+	vec2i position;
 };
 struct MouseButton: Mouse {
 	uint32 button;

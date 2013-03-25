@@ -81,6 +81,6 @@ core::Bytes extractGlyphs(core::Bytes string,data::Font* font,core::BufferAlloca
 //NB: The assumed vertex layout is:
 //vertexLayout() - for standard fonts
 //outlinedVertexLayout() - for outlined fonts
-void drawGlyphs(batching::Geometry& geometry,vec2f position,const data::Font* font,uint32 colour,uint32 outlineColour,const Glyph* glyphs,uint32 count);
+void drawGlyphs(batching::Geometry& geometry,vec2i position,const data::Font* font,uint32 colour,uint32 outlineColour,const Glyph* glyphs,uint32 count);
 
 } }

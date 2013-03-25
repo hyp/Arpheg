@@ -58,7 +58,7 @@ namespace data {
 		inline Sprite() {}
 		explicit Sprite(vec2i size);
 		inline rendering::Texture2D texture() const;
-		inline vec2f size() const;
+		inline vec2i size() const;
 		inline uint32 frameCount() const;
 		inline Frame* frames() const;
 	
@@ -68,7 +68,7 @@ namespace data {
 		Frame*  frames_;
 	};
 	inline rendering::Texture2D Sprite::texture() const { return texture_; }
-	inline vec2f Sprite::size() const { return vec2f( float(size_&0xFFFF),float(size_>>16) ); }
+	inline vec2i Sprite::size() const { return vec2i( int32(size_&0xFFFF),int32(size_>>16) ); }
 	inline uint32 Sprite::frameCount() const { return frameCount_; }
 	inline Sprite::Frame* Sprite::frames() const { return frames_; }
 

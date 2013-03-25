@@ -28,8 +28,8 @@ public:
 	virtual void enabled();
 	virtual void disabled();
 	
-	virtual vec2f calculateSize();
-	virtual vec2f calculateBorder();
+	virtual vec2i calculateSize();
+	virtual vec2i calculateBorder();
 protected:
 	uint32 flags_;
 };
@@ -59,7 +59,7 @@ public:
 	void onJoystick(Widget* widget,const events::Joystick& ev);
 	void onTouch(Widget* widget,events::Touch& ev);
 	
-	vec2f calculateSize();
+	vec2i calculateSize();
 
 	uint32 childrenCount_;
 	Widget* children_;
@@ -70,7 +70,7 @@ public:
 
 	Image(DataType image,uint32 colour = 0xFFffFFff);
 	void draw(Widget* widget,events::Draw& ev);
-	vec2f calculateSize();
+	vec2i calculateSize();
 
 	const data::Sprite* image_;
 	uint32 color_;
@@ -99,7 +99,7 @@ public:
 	Text(const char* string,FontType font,uint32 colour = 0xFFffFFff,uint32 outlineColour = 0xFFffFFff);
 	Text(core::Bytes string,FontType font,uint32 colour = 0xFFffFFff,uint32 outlineColour = 0xFFffFFff);
 	void draw(Widget* widget,events::Draw& ev);
-	vec2f calculateSize();
+	vec2i calculateSize();
 
 	core::Bytes string_;
 	data::Font* font_;

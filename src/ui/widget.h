@@ -23,12 +23,12 @@ public:
 	void deselect();
 	void onClick();
 
-	inline float x() const;
-	inline float y() const;
-	inline float width() const;
-	inline float height() const;
-	inline vec2f position() const;
-	inline vec2f size() const;
+	inline int32 x() const;
+	inline int32 y() const;
+	inline int32 width() const;
+	inline int32 height() const;
+	inline vec2i position() const;
+	inline vec2i size() const;
 	
 	void* allocateComponent(size_t sz,size_t align);
 	void addComponent(Component* component);
@@ -45,8 +45,8 @@ public:
 	void onJoystick(const events::Joystick& ev);
 	void onTouch(events::Touch& ev);
 	
-	vec2f position_;
-	vec2f size_;
+	vec2i position_;
+	vec2i size_;
 	uint32 state_;
 	uint32 color_;
 	Widget* next_;
@@ -62,18 +62,18 @@ public:
 		StateSelected = 0x8,
 	};
 
-	Widget(vec2f position = vec2f(0.f,0.f),vec2f size = vec2f(0.f,0.f));
+	Widget(vec2i position = vec2i(0,0),vec2i size = vec2i(0,0));
 };
 inline bool Widget::isEnabled() const { return (state_ & StateEnabled)!=0; }
 inline bool Widget::isVisible() const { return (state_ & StateVisible)!=0; }
 inline bool Widget::isHovered() const { return (state_ & StateHover)!=0; }
 inline bool Widget::isSelected() const { return (state_ & StateSelected)!=0; }
-inline vec2f Widget::position() const { return position_; }
-inline vec2f Widget::size() const { return size_; }
-inline float Widget::x() const { return position_.x; }
-inline float Widget::y() const { return position_.y; }
-inline float Widget::width() const { return size_.x; }
-inline float Widget::height() const { return size_.y; }
+inline vec2i Widget::position() const { return position_; }
+inline vec2i Widget::size() const { return size_; }
+inline int32 Widget::x() const { return position_.x; }
+inline int32 Widget::y() const { return position_.y; }
+inline int32 Widget::width() const { return size_.x; }
+inline int32 Widget::height() const { return size_.y; }
 inline Component** Widget::components() { return componentCount_ <= kSmallComponentArray? components_: (Component**)components_[0]; }
 inline uint32 Widget::componentCount()  { return componentCount_; }
 

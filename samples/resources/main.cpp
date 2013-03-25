@@ -34,7 +34,7 @@ int main(){
 	services::ui()->loadData("ui");
 	auto sprite = data->sprite("icon");
 	ui::Image image(sprite);
-	ui::Widget imageWidget(vec2f(0,0),vec2f(renderer->context()->frameBufferSize().x,renderer->context()->frameBufferSize().y));
+	ui::Widget imageWidget(vec2i(0,0),renderer->context()->frameBufferSize());
 	imageWidget.addComponent(&image);
 	ui::Clickable button;
 	imageWidget.addComponent(&button);
@@ -60,7 +60,7 @@ int main(){
 
 
 	ui::Text text("Hello",font,0xFFFFFFFF,0xFF0000FF);
-	ui::Widget textWidget(vec2f(32,402),vec2f(100,400));
+	ui::Widget textWidget(vec2i(32,402),vec2i(100,400));
 	textWidget.addComponent(&text);
 	services::ui()->root()->addChild(&textWidget);
 

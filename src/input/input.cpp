@@ -150,7 +150,7 @@ void Service::waitForEventBinding() {
 
 void Service::handleEvents(events::IHandler* handler) {
 	//TODO key, touch, joy
-	auto mouse = vec2f(cursorPosition_.x,cursorPosition_.y);
+	auto mouse = vec2i(cursorPosition_.x,cursorPosition_.y);
 	if(caps & FlagMouseMoved){
 		events::Mouse ev;ev.position = mouse; handler->onMouseMove(ev);
 	}

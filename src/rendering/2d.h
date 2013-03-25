@@ -48,12 +48,12 @@ namespace draw2D {
 
 	namespace textured {
 		namespace coloured {
-			void quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint16* tcoords,uint32 colour);
+			void quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords,uint32 colour);
 		}
-		void quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint16* tcoords);
+		void quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords);
 	}
 	namespace coloured {
-		void quad(batching::Geometry& geometry,vec2f vertices[4],uint32 colours[4]);
-		void quad(batching::Geometry& geometry,vec2f min,vec2f max,uint32 colours[4]);
+		void quad(batching::Geometry& geometry,vec2i vertices[4],uint32 colours[4]);
+		void quad(batching::Geometry& geometry,vec2i min,vec2i max,uint32 colours[4]);
 	}
 } }

@@ -28,11 +28,11 @@ void Component::hidden() { }
 void Component::enabled() { }
 void Component::disabled() { }
 
-vec2f Component::calculateSize(){
-	return vec2f(0,0);
+vec2i Component::calculateSize(){
+	return vec2i(0,0);
 }
-vec2f Component::calculateBorder(){
-	return vec2f(0,0);
+vec2i Component::calculateBorder(){
+	return vec2i(0,0);
 }
 
 Group::Group() : childrenCount_(0),children_(nullptr) {}
@@ -59,8 +59,8 @@ UI_GROUP_DISPATCH_INPUT(onTouch,events::Touch)
 #undef UI_GROUP_DISPATCH_INPUT
 #undef UI_GROUP_DISPATCH_INPUT_CONST
 
-vec2f Group::calculateSize() {
-	vec2f sz = vec2f(0,0);
+vec2i Group::calculateSize() {
+	vec2i sz = vec2i(0,0);
 	return sz;
 }
 void Group::addChild(Widget* child) {
@@ -100,7 +100,7 @@ void Image::draw(Widget* widget,events::Draw& ev) {
 	auto geometry = ev.renderer->allocate(ev.layerId,uint32(Service::kTexturedColouredTrianglesBatch),4,6);
 	rendering::draw2D::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,image_->frames()[0].textureCoords,color_);
 }
-vec2f Image::calculateSize() {
+vec2i Image::calculateSize() {
 	return image_->size();
 }
 
@@ -149,18 +149,18 @@ Text::Text(core::Bytes string,FontType font,uint32 colour,uint32 outlineColour) 
 void Text::draw(Widget* widget,events::Draw& ev){
 	auto string = string_;
 	core::BufferAllocator& glyphBuffer=*ev.glyphExtractionBuffer;
-	vec2f stringPos = ev.position;
+	auto stringPos = ev.position;
 	while(!string.empty()){
 		string = rendering::text::extractGlyphs(string,font_,glyphBuffer);
 		uint32 count = core::bufferArray::length<rendering::text::Glyph>(glyphBuffer);
 		auto geometry = ev.renderer->allocate(ev.layerId,font_,count*4,count*6);
 		rendering::text::drawGlyphs(geometry,stringPos,font_,color_,outlineColor_,core::bufferArray::begin<rendering::text::Glyph>(glyphBuffer),count);
-		stringPos.y+=font_->lineHeight();
+		stringPos.y+=int(font_->lineHeight());
 		glyphBuffer.reset();
 	}
 }
-vec2f Text::calculateSize(){
-	return vec2f(0,0);//TODO
+vec2i Text::calculateSize(){
+	return vec2i(0,0);//TODO
 }	
 
 void Clickable::onMouseButton(Widget* widget,events::MouseButton& ev){
