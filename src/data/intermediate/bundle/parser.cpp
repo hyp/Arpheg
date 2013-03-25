@@ -40,6 +40,18 @@ struct String: core::Bytes {
 };
 void String::operator = (const core::Bytes& b){ begin=b.begin;end=b.end; }
 
+class Texture: public SubParser {
+public:
+	String id;
+	String path;
+	bool mipmapping;
+	rendering::Texture2D result;
+
+	Texture(): mipmapping(false) {}
+	void set(core::Bytes id);
+	void end();
+};
+
 //A mesh from the text bundle importer
 class Mesh: public SubParser {
 	String id;
@@ -60,13 +72,19 @@ void Mesh::end(){
 
 	class Reader: public intermediate::mesh::Reader {
 	public:
+		Parser* parser;
 		internal_::Service* service;
 		internal_::ResourceBundle* bundle;
 		Mesh* self;
 		::data::Mesh* destMesh;
 		uint32 animationId;
+		uint32 materialId;
 
-		Reader() : animationId(0) {}
+		enum { kMaxMaterials = 128 };
+		
+		::data::Material* materials[kMaxMaterials];
+
+		Reader() : animationId(0),materialId(0) { for(size_t i =0;i < kMaxMaterials;++i) materials[i] = nullptr; }
 
 		void processMesh(const intermediate::Mesh* submeshes,const ::data::Mesh& mesh,uint32 vertexFormat) {
 			
@@ -109,6 +127,10 @@ void Mesh::end(){
 
 				new(destSubmeshes + i) ::data::SubMesh(m,0,count,submeshes[i].indexSize,rendering::topology::Triangle);
 				destSubmeshes[i].skeletonJoints_ = submeshes[i].joints;
+
+				auto mat = submeshes[i].materialIndex;
+				if(mat >= materialId) destSubmeshes[i].material_ = nullptr;
+				else destSubmeshes[i].material_ = materials[mat];
 			}
 			
 			if(mesh.submeshCount() < 2){
@@ -121,6 +143,27 @@ void Mesh::end(){
 			destMesh->skeletonHierarchy_ = destParentIds;
 			destMesh->skeletonLocalTransforms_ = destLocalTransformations;
 			service->mapPointerToID(bundle,destMesh,self->id);
+		}
+		void Reader::processMaterial(const char* name,const char** textures,size_t textureCount) {
+			core::bufferStringStream::Formatter fmt;
+			if(!name || !strlen(name)) {
+				using namespace core::bufferStringStream;
+				name = asCString(fmt.allocator<<self->id<<".material."<<materialId);
+			}
+
+			auto destMaterial = service->allocateObject<::data::Material>();
+			rendering::Texture2D ts[::data::Material::kMaxTextures];
+			for(size_t i = 0;i<textureCount;++i){
+				Texture texture;
+				texture.parser = parser;
+				texture.id = core::Bytes(nullptr,nullptr);
+				texture.mipmapping = true;
+				texture.path = core::Bytes((void*)textures[i],strlen(textures[i]));
+				texture.end();
+				ts[i] = texture.result;
+			}
+			materials[materialId] = new(destMaterial) ::data::Material(ts,textureCount,nullptr,0);
+			materialId++;
 		}
 		void processSkeletalAnimation(const char* name,const animation::Animation& animation) {
 
@@ -169,8 +212,11 @@ void Mesh::end(){
 			service->mapPointerToID(bundle,destAnimation,core::Bytes((void*)name,strlen(name)));
 		}
 	};
-	Reader reader;reader.service = parser->service;reader.bundle = parser->bundle;reader.self = this;
-	reader.load(core::memory::globalAllocator(),parser->makePath(path));
+	Reader reader;reader.parser = parser;reader.service = parser->service;reader.bundle = parser->bundle;reader.self = this;
+	auto p = parser->makePath(path);
+	parser->pushPath(path);
+	reader.load(core::memory::globalAllocator(),p);
+	parser->popPath();
 }
 
 
@@ -268,39 +314,7 @@ void Pipeline::end(){
 }
 
 //
-class Material: public SubParser {
-public:
-	String id;
-	/*union Attribute {
-		s
-	};
-	struct Texture {
-		enum { Diffuse = 1, Normal = 2,Specular = 4, Displacement = 8, Opacity = 0x10, Light = 0x20 };
-		uint32 type;
-		String path;
-	};
-	uint32 textureCount;
-	enum { kMaxTextures = 8 };
-	Texture textures[kMaxTextures];
-	vec3f diffuse, specular, ambient, emmisive;
-	float shininess, roughness, opacity;*/
-	void set(core::Bytes id);
-};
-void Material::set(core::Bytes id){
-	if(equals(id,"id"))
-		this->id = parser->string();
-}
 
-class Texture: public SubParser {
-public:
-	String id;
-	String path;
-	bool mipmapping;
-
-	Texture(): mipmapping(false) {}
-	void set(core::Bytes id);
-	void end();
-};
 class TextureArray: public SubParser {
 public:
 	String id;
@@ -334,7 +348,8 @@ void Texture::end() {
 	
 	auto obj = parser->service->allocateObject<rendering::Texture2D>();
 	*obj = reader.result;
-	parser->service->mapPointerToID(parser->bundle,obj,id);
+	result = reader.result;
+	if(!id.empty()) parser->service->mapPointerToID(parser->bundle,obj,id);
 	parser->service->renderingTexture2D(reader.result);
 }
 void TextureArray::set(core::Bytes id){
@@ -460,7 +475,6 @@ Parser::Parser() :
 		registerSubdata<Pipeline>    ("pipeline");
 		registerSubdata<Texture>     ("texture");
 		registerSubdata<TextureArray>("textureArray");
-		registerSubdata<Material>("material");
 		registerSubdata<Font>("font");
 		registerSubdata<Sprite>("sprite");
 }
@@ -474,11 +488,12 @@ void Parser::parse(core::Bytes bundlePath,core::Bytes bytes,data::internal_::Ser
 	text::Parser::parse(bytes);
 }
 void Parser::pushPath(core::Bytes subpath){
-	pathBuffer.reset();
-	utils::path::dirname(pathBuffer,subpath);
+	core::bufferStringStream::Formatter fmt;
+	
+	utils::path::dirname(fmt.allocator,subpath);
 
 	auto size = pathBufferStack.size();
-	utils::path::join(pathBufferStack,currentPath_,core::Bytes(pathBuffer.bufferBase(),pathBuffer.bufferTop()));
+	utils::path::join(pathBufferStack,currentPath_,core::Bytes(fmt.allocator.bufferBase(),fmt.allocator.bufferTop()));
 	currentPath_.begin = pathBufferStack.bufferBase() + size;
 	currentPath_.end   = pathBufferStack.bufferTop();
 }

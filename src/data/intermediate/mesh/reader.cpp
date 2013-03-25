@@ -36,6 +36,7 @@ void Material::release(core::Allocator* allocator){
 }
 Mesh::Mesh() : vertices(nullptr,nullptr),indices(nullptr,nullptr),joints(nullptr) {
 	indexSize = 0;
+	materialIndex = 0;
 }
 
 namespace mesh {
@@ -350,10 +351,17 @@ void Scene::importMaterial(const aiMaterial* material) {
 	}
 
 	aiString diffuseTexture,normalTexture,specularTexture;
-	
-	bool hasDiffuseMap = AI_SUCCESS == material->Get(AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE,0),diffuseTexture);
-	bool hasNormalMap = AI_SUCCESS == material->Get(AI_MATKEY_TEXTURE(aiTextureType_NORMALS,0),normalTexture);
-	bool hasSpecularMap = AI_SUCCESS == material->Get(AI_MATKEY_TEXTURE(aiTextureType_SPECULAR,0),specularTexture);
+
+	aiString textures[::data::Material::kMaxTextures];
+	size_t currentTextures = 0;
+	if(AI_SUCCESS == material->Get(AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE,0),textures[currentTextures])) currentTextures++;
+	if(AI_SUCCESS == material->Get(AI_MATKEY_TEXTURE(aiTextureType_NORMALS,0),textures[currentTextures])) currentTextures++;
+	if(AI_SUCCESS == material->Get(AI_MATKEY_TEXTURE(aiTextureType_SPECULAR,0),textures[currentTextures])) currentTextures++;
+
+	const char* ctextures[::data::Material::kMaxTextures];
+	for(size_t i = 0;i<currentTextures;++i) ctextures[i] = textures[i].C_Str();
+
+	reader->processMaterial(name.C_Str(),ctextures,currentTextures);
 
 	auto logger = services::logging();
 	if(logger->priority() <= application::logging::Trace){
@@ -374,20 +382,14 @@ void Scene::importMaterial(const aiMaterial* material) {
 		TRACE_COL3(hasEmmisive,emissive);
 		if(hasShininess) printf(fmt,"  shininess: %f\n",shininess); else printf(fmt,"  shininess: n/a\n");
 
-		TRACE_STR(hasDiffuseMap,diffuseTexture);
-		TRACE_STR(hasNormalMap,normalTexture);
-		TRACE_STR(hasSpecularMap,specularTexture);
+		//TRACE_STR(hasDiffuseMap,diffuseTexture);
+		//TRACE_STR(hasNormalMap,normalTexture);
+		//TRACE_STR(hasSpecularMap,specularTexture);
 		logger->trace(asCString(fmt));
 #undef TRACE_STR
 #undef TRACE_COL3
 #undef TRACE_TOSTR
 	}
-	//mat.diffuse = diffuse;
-	//mat.specular = specular;
-	//mat.ambient = ambient;
-	//mat.emissive = emissive;
-	//mat.shininess = shininess;
-	//if(hasDiffuseMap)
 }
 void Scene::selectVertexFormat(const aiMesh* mesh){
 	auto logging = services::logging();
@@ -494,6 +496,7 @@ void Scene::recursiveImport(aiNode* node,aiMatrix4x4 transform) {
 			importer->importVertices(scene->mMeshes[node->mMeshes[i]],matrix);
 			importer->importIndices (scene->mMeshes[node->mMeshes[i]]);
 			target.joints = importMeshBones(scene->mMeshes[node->mMeshes[i]]);
+			target.materialIndex = scene->mMeshes[node->mMeshes[i]]->mMaterialIndex;
 			submeshes.push_back(target);
 		}
 	}
@@ -510,6 +513,9 @@ void Scene::importIntoOneMesh(const aiScene* scene){
 	resultingMesh.skeletonHierarchy_ =  nullptr;
 	resultingMesh.skeletonLocalTransforms_ = nullptr;
 	
+	for(uint32 i = 0;i < scene->mNumMaterials;++i){
+		importMaterial(scene->mMaterials[i]);
+	}
 	extractSkeleton();
 	selectVertexFormat(scene->mMeshes[0]);
 	recursiveImport(scene->mRootNode,aiMatrix4x4());
@@ -610,6 +616,9 @@ void Scene::importSkeletalAnimationTracks() {
 
 void Reader::processSkeletalAnimation(const char* name,const animation::Animation& track){
 }
+void Reader::processMaterial(const char* name,const char** textures,size_t textureCount) {
+
+}
 void Reader::load(core::Allocator* allocator,const char* name,const Options& options){
 	Assimp::Importer importer;
 
@@ -624,7 +633,7 @@ void Reader::load(core::Allocator* allocator,const char* name,const Options& opt
 		| aiProcess_GenUVCoords           
 		| aiProcess_SortByPType       //Request polygons only
 		| aiProcess_TransformUVCoords 
-		| aiProcess_LimitBoneWeights; //max N bone weights
+		| aiProcess_LimitBoneWeights | aiProcess_FlipUVs; //max N bone weights
 	if(options.optimize){
 		flags |= aiProcess_ImproveCacheLocality 
 			| aiProcess_RemoveRedundantMaterials

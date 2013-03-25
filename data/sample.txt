@@ -11,12 +11,11 @@ font:
 	
 texture:
 	id = 'crate'
-	path = 'meshes/guard1_body.tga'
+	path = 'meshes/crate.tga'
 
 mesh:
 	id = 'head'
 	path = 'meshes/boblampclean.md5mesh'
-	material = 'material1'
 		
 	
 	

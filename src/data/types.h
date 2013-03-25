@@ -76,18 +76,31 @@ namespace data {
 	
 	//Material defines how a mesh is rendered
 	struct Material {
-	
-		inline uint32 textureCount();
+		enum { kConstantsVec4fCount = 4 };
+		enum { kMaxTextures = 5 };
+		enum { kConstantsSize = 4*sizeof(vec4f) };
+
+		inline Material() {}
+		Material(const rendering::Texture2D* textures,size_t textureCount,const void* constants,size_t constantsSize);
+
+		inline uint32 textureCount() const;
 		inline rendering::Texture2D* textures();
-		//inline re
+		//Shader constants.
+		inline core::Bytes constants();	
+		inline vec4f* vec4fConstants();
 	private:
-		enum { kMaxTextures = 8 };
-		uint32 textureCount_;
+		uint32 data_;
 		rendering::Texture2D textures_[kMaxTextures];
-		float shininess_;
+		vec4f parameterStorage_       [kConstantsVec4fCount];
 	};
-	inline uint32 Material::textureCount() { return textureCount_; }
+	inline uint32 Material::textureCount() const { return data_; }
 	inline rendering::Texture2D* Material::textures() { return textures_; }
+	inline core::Bytes Material::constants() {
+		return core::Bytes(parameterStorage_,kConstantsSize);
+	}
+	inline vec4f* Material::vec4fConstants() {
+		return parameterStorage_;
+	}
 
 	//TODO Can be 3x4 matrix.
 	typedef mat44f Transformation3D;

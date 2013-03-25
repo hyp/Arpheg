@@ -12,6 +12,7 @@ namespace intermediate {
 		uint32 indexSize;
 		core::Bytes vertices,indices;
 		::data::SubMesh::Joint* joints;
+		uint32 materialIndex;
 
 		Mesh();
 	};
@@ -52,6 +53,7 @@ namespace mesh {
 		void load(core::Allocator* allocator,const char* name,const Options& options = Options());
 		
 		virtual void processMesh(const Mesh* submeshes,const ::data::Mesh& mesh,uint32 vertexFormat) = 0;
+		virtual void processMaterial(const char* name,const char** textures,size_t textureCount);
 		virtual void processSkeletalAnimation(const char* name,const animation::Animation& animation);
 	};
 } } }

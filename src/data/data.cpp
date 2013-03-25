@@ -237,6 +237,13 @@ Sprite::Frame::Frame(float* texcoords) {
 	textureCoords[2] = normalizedUint16::make(texcoords[2]);
 	textureCoords[3] = normalizedUint16::make(texcoords[3]);
 }
+Material::Material(const rendering::Texture2D* textures,size_t textureCount,const void* constants,size_t constantsSize) {
+	assert(textureCount <= kMaxTextures);
+	data_ = uint32(textureCount);
+	for(size_t i =0;i< textureCount;++i) textures_[i] = textures[i];
+	if(constantsSize < kConstantsSize) memset(parameterStorage_,0,sizeof(parameterStorage_));
+	if(constantsSize) memcpy(parameterStorage_,constants,constantsSize);
+}
 SubMesh::SubMesh(const rendering::Mesh& mesh,uint32 offset,uint32 count,uint32 indexSize,rendering::topology::Primitive mode){
 	mesh_ = mesh;
 	data_ = count&kCountMask | ((indexSize&kIndexSizeMask)<<kIndexOffset) | ((uint32(mode)&kIndexSizeMask)<<kPrimOffset);

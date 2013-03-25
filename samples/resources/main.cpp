@@ -55,7 +55,7 @@ int main(){
 	auto mesh    = data->mesh("head");
 	auto animation = data->animation("head.animation.0");
 	auto program = data->pipeline("default");
-	auto texture = data->texture2D("crate");
+	//auto texture = data->texture2D("crate");
 	auto font    = data->font("font");
 
 
@@ -72,7 +72,7 @@ int main(){
 	application::profiling::Timer profRasterizeTiles("Rasterize Tiles");
 	application::profiling::Timer profQuery("Query occlusion");
 
-	float cam = 4.f;
+	float cam = 60.f;
 	float anim = 0.f;
 
 	while(!services::application()->quitRequest()){
@@ -97,8 +97,7 @@ int main(){
 		mat44f view       = mat44f::lookAt     (vec3f(cam,cam,cam),vec3f(0,0,0),vec3f(0,1,0));
 		auto pv= projection*view;
 		renderer->bind(mvp,pv);
-		renderer->bind(texture,0);
-		int id = 0;
+
 
 		struct Box {
 			vec3f min,max;
@@ -120,7 +119,6 @@ int main(){
 		}
 		profBinBoxes.end();
 		profRasterizeTiles.start();
-		//cov = depthBuffer.rasterizeTiles();
 		services::tasking()->wait(depthBuffer.createRasterizationTasks());
 		profRasterizeTiles.end();
 		profQuery.start();
@@ -131,6 +129,7 @@ int main(){
 
 
 		//vis = depthBuffer.testAABB(vec3f(0.5,1.5,1.5),vec3f(0.75,1.75,1.75));
+		
 		auto animator = services::animation();
 		auto nodes = animator->transformationBuffer().allocate(mesh->skeletonNodeCount());
 		anim+=services::timing()->dt();
@@ -144,6 +143,15 @@ int main(){
 			rendering::animation::Animator::bindSkeleton(submesh,mesh->skeletonNodeCount(),nodes,bones);
 			renderer->bind(c,(void*)bones);
 			
+			if(auto mat= submesh->material()){
+				uint32 slots[::data::Material::kMaxTextures];
+				for(uint32 i = 0;i<mat->textureCount();++i){
+					renderer->bind(mat->textures()[i],i);
+					slots[i] = i;
+				}
+				renderer->bind(textureConst,slots);
+			}
+
 			renderer->bind(submesh->mesh(),submesh->primitiveKind(),submesh->indexSize());
 			renderer->drawIndexed(submesh->primitiveOffset(),submesh->primitiveCount());
 		}
