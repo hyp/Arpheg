@@ -166,7 +166,6 @@ int main(){
 		for(uint32 j = 0;j<boxCount;++j){
 			debugRenderer->box(mat44f::identity(),boxes[j].min,boxes[j].max,vec4f(0.5,0.0,0.5,1.0));
 		}
-		//debugRenderer->wireBox(mat44f::identity(),vec3f(0,1.0f,1.0f),vec3f(1,1.8f,1.6f),vec4f(0.5,0.0,0.5,1.0));
 		debugRenderer->render (pv);
 
 		rendering::texture::Descriptor2D desc;

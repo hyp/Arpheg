@@ -92,7 +92,7 @@ void Service::enterLayer(rendering::Texture2D t) {
 	using namespace rendering::ui;
 
 	Batch batch;
-	batch.vertexLayout = rendering::draw2D::vertexLayout(rendering::draw2D::mode::Textured|rendering::draw2D::mode::Coloured);
+	batch.vertexLayout = rendering::draw2D::positionInt16::vertexLayout(rendering::draw2D::mode::Textured|rendering::draw2D::mode::Coloured);
 	batch.name = "uiMainBatch";
 	Batch::Material material;
 	material.pipeline = uiPipeline->pipeline();
@@ -104,7 +104,7 @@ void Service::enterLayer(rendering::Texture2D t) {
 	renderer_->registerBatch(batch,material);
 	//assert(kTexturedColouredTrianglesBatch == );
 	
-	batch.vertexLayout = rendering::draw2D::vertexLayout(rendering::draw2D::mode::Coloured);
+	batch.vertexLayout = rendering::draw2D::positionInt16::vertexLayout(rendering::draw2D::mode::Coloured);
 	batch.name = "Coloured triangles";
 	material.pipeline = uiPipeline->pipeline();
 	material.matrix   = rendering::Pipeline::Constant("matrix");

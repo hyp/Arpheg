@@ -4,6 +4,7 @@
 namespace rendering {
 namespace draw2D {
 
+
 static core::TypeDescriptor triangleColourVertexLayoutDesc[2] = 
 	{ { core::TypeDescriptor::TFloat,2 },{ core::TypeDescriptor::TNormalizedUint8,4 } };
 static core::TypeDescriptor triangleTextureVertexLayoutDesc[2] = 
@@ -63,6 +64,7 @@ void textured::quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint1
 	geometry.indices += 6;
 	geometry.indexOffset += 4;
 }
+
 
 namespace positionInt16 {
 
