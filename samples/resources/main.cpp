@@ -28,7 +28,7 @@ int main(){
 
 	//Data
 	data->loadBundle(ARPHEG_ROOT_PATH "data/default/default.txt","default");
-	auto debugPipeline = data->pipeline("arpheg.debug.pipeline");
+	services::debugRendering()->pipeline(data->pipeline("arpheg.debug.pipeline"));
 
 	data->loadBundle(ARPHEG_ROOT_PATH "data/default/ui.txt","ui");
 	services::ui()->loadData("ui");
@@ -72,7 +72,7 @@ int main(){
 	application::profiling::Timer profRasterizeTiles("Rasterize Tiles");
 	application::profiling::Timer profQuery("Query occlusion");
 
-	float cam = 2.f;
+	float cam = 3.f;
 	float anim = 0.f;
 
 	while(!services::application()->quitRequest()){
@@ -135,6 +135,7 @@ int main(){
 		anim+=services::timing()->dt();
 		rendering::animation::Animator::animate(mesh,animation,anim,nodes);
 		
+		services::debugRendering()->skeleton(mat44f::identity(),mesh,nodes);
 		rendering::Pipeline::Constant c("boneMatrices");
 		for(size_t i = 0;i<mesh->submeshCount();++i){
 			auto submesh = mesh->submesh(i);
@@ -161,13 +162,12 @@ int main(){
 
 
 		auto debugRenderer = services::debugRendering();
-		debugRenderer->viewProjectionMatrix(pv);
-		debugRenderer->axis   (mat44f::scale(vec3f(3,3,3)));
+		debugRenderer->node   (mat44f::scale(vec3f(3,3,3)));
 		for(uint32 j = 0;j<boxCount;++j){
-			debugRenderer->wireBox(mat44f::identity(),boxes[j].min,boxes[j].max,vec4f(0.5,0.0,0.5,1.0));
+			debugRenderer->box(mat44f::identity(),boxes[j].min,boxes[j].max,vec4f(0.5,0.0,0.5,1.0));
 		}
 		//debugRenderer->wireBox(mat44f::identity(),vec3f(0,1.0f,1.0f),vec3f(1,1.8f,1.6f),vec4f(0.5,0.0,0.5,1.0));
-		debugRenderer->render (debugPipeline->pipeline());
+		debugRenderer->render (pv);
 
 		rendering::texture::Descriptor2D desc;
 		auto ts = depthBuffer.getTexels(desc);

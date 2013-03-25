@@ -74,9 +74,9 @@ STRUCT_PREALIGN(16) struct vec4f {
 	float x,y,z,w;
 
 	inline vec4f() {}
-	inline vec4f(float xx);
-	inline vec4f(vec2f v);
-	inline vec4f(vec3f v);
+	explicit inline vec4f(float xx);
+	explicit inline vec4f(vec2f v);
+	explicit inline vec4f(vec3f v);
 	inline vec4f(float xx,float yy,float zz,float ww);
 #ifdef ARPHEG_ARCH_X86
 	explicit inline vec4f(__m128 value);
@@ -181,6 +181,7 @@ STRUCT_PREALIGN(16) struct mat44f {
 	static mat44f ortho(vec2f min,vec2f max,float near = -1.0f,float far = 1.0f);
 	static mat44f perspective(float fovy, float aspect, float znear, float zfar);
 	static mat44f lookAt(vec3f eye, vec3f center, vec3f up);
+	inline vec3f translationComponent() const;
 
 	//Assume: The direction is a vector of unit length 1.
 	static mat44f translateRotateScale2D(vec2f translation,vec2f direction,vec2f scale);
@@ -220,6 +221,9 @@ inline void mat44f::transposeSelf() {
 	c = vec4f(a.z,b.z,c.z,d.z);
 	d = vec4f(a.w,b.w,c.w,d.w);
 #endif
+}
+inline vec3f mat44f::translationComponent() const {
+	return vec3f(d.x,d.y,d.z);
 }
 
 inline vec4f operator * (const mat44f& m,const vec4f& v);

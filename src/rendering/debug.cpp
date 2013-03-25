@@ -1,14 +1,13 @@
 #include <limits>
 #include <string.h>
 #include "../core/assert.h"
-#include "../core/thread/threadlocal.h"
-#include "../core/thread/thread.h"
 #include "../core/allocatorNew.h"
 #include "../core/bufferArray.h"
 #include "../application/tasking.h"
 #include "../services.h"
 #include "rendering.h"
 #include "debug.h"
+#include "opengl/gl.h"
 
 //TODO triangles
 
@@ -18,137 +17,12 @@ namespace debug {
 //Position + colour
 static const size_t kVertexSize = sizeof(float)*3 + sizeof(uint8)*4;
 
-#ifndef ARPEG_PLATFORM_NOTHREAD
-
-static const size_t kThreadVertexBufferSize = 2048;
-static const size_t kThreadIndexBufferSize  = 768;
-
-THREAD_LOCAL(uint32,threadLineFrameId) = 0;
-THREAD_LOCAL(core::BufferAllocator*,threadLineVertices) = nullptr;
-THREAD_LOCAL(core::BufferAllocator*,threadLineIndices) = nullptr;
-THREAD_LOCAL(uint32,threadTriangleFrameId) = 0;
-THREAD_LOCAL(core::BufferAllocator*,threadTriangleVertices) = nullptr;
-THREAD_LOCAL(core::BufferAllocator*,threadTriangleIndices) = nullptr;
-
-struct ThreadBufferRegistration {
-	bool isLines;
-	core::BufferAllocator* vertices;
-	core::BufferAllocator* indices;
-};
-
-void Service::getThreadLineBuffers(core::BufferAllocator*& vertices,core::BufferAllocator*& indices){
-	if(threadLineFrameId == services::application()->frameID()){
-		vertices = threadLineVertices;
-		indices  = threadLineIndices;
-		return;
-	}
-	threadLineFrameId = services::application()->frameID();
-	auto memory = (core::BufferAllocator*) services::threadSafeFrameAllocator()->allocate(sizeof(core::BufferAllocator)*2 + kThreadVertexBufferSize+kThreadIndexBufferSize,alignof(core::BufferAllocator));
-	auto datMemory = ((uint8*)memory) + sizeof(core::BufferAllocator)*2;
-	vertices = threadLineVertices = new(memory) core::BufferAllocator(core::Bytes(datMemory,kThreadVertexBufferSize));
-	indices = threadLineIndices  = new(memory+1) core::BufferAllocator(core::Bytes(datMemory+kThreadVertexBufferSize,kThreadIndexBufferSize));
-	ThreadBufferRegistration reg = {true,vertices,indices};
-	{
-		core::Lock lock(*threadBufferMutex_);
-		core::bufferArray::add(threadBuffers_,reg);
-	}
-}
-void Service::getThreadTriangleBuffers(core::BufferAllocator*& vertices,core::BufferAllocator*& indices){
-	if(threadTriangleFrameId == services::application()->frameID()){
-		vertices = threadTriangleVertices;
-		indices  = threadTriangleIndices;
-		return;
-	}
-	threadTriangleFrameId = services::application()->frameID();
-	auto memory = (core::BufferAllocator*) services::threadSafeFrameAllocator()->allocate(sizeof(core::BufferAllocator)*2 + kThreadVertexBufferSize+kThreadIndexBufferSize,alignof(core::BufferAllocator));
-	auto datMemory = ((uint8*)memory) + sizeof(core::BufferAllocator)*2;
-	vertices = threadTriangleVertices = new(memory) core::BufferAllocator(core::Bytes(datMemory,kThreadVertexBufferSize));
-	indices = threadTriangleIndices  = new(memory+1) core::BufferAllocator(core::Bytes(datMemory+kThreadVertexBufferSize,kThreadIndexBufferSize));
-	ThreadBufferRegistration reg = {false,vertices,indices};
-	{
-		core::Lock lock(*threadBufferMutex_);
-		core::bufferArray::add(threadBuffers_,reg);
-	}
-}
-void Service::mergeLines(core::BufferAllocator* threadLineVertices,core::BufferAllocator* threadLineIndices){
-	uint32 indexOffset;
-	void* vdest,*idest;
-	//Locking point
-	{
-		core::Lock lock(*lineMutex_);
-		indexOffset = lines_.size()/kVertexSize;
-		vdest = lines_.allocate(threadLineVertices->size());
-		idest = lineIndices_.allocate(threadLineIndices->size());
-	}
-	
-	//Copy vertices and indices from the thread buffer to the global buffer.
-	memcpy(vdest,threadLineVertices->bufferBase(),threadLineVertices->size());
-	uint16* idx = (uint16*)idest;
-	for(uint16* i = core::bufferArray::begin<uint16>(*threadLineIndices),*end = core::bufferArray::end<uint16>(*threadLineIndices); i< end;++i){
-		*idx = *i + uint16(indexOffset);++idx;
-	}
-
-	threadLineVertices->reset();
-	threadLineIndices->reset();
-}
-void Service::mergeTriangles(core::BufferAllocator* threadTriangleVertices,core::BufferAllocator* threadTriangleIndices){
-	uint32 indexOffset;
-	void* vdest,*idest;
-	//Locking point
-	{
-		core::Lock lock(*triangleMutex_);
-		indexOffset = triangles_.size()/kVertexSize;
-		vdest = triangles_.allocate(threadTriangleVertices->size());
-		idest = triangleIndices_.allocate(threadTriangleIndices->size());
-	}
-	
-	//Copy vertices and indices from the thread buffer to the global buffer.
-	memcpy(vdest,threadTriangleVertices->bufferBase(),threadTriangleVertices->size());
-	uint16* idx = (uint16*)idest;
-	for(uint16* i = core::bufferArray::begin<uint16>(*threadTriangleIndices),*end = core::bufferArray::end<uint16>(*threadTriangleIndices); i< end;++i){
-		*idx = *i + uint16(indexOffset);++idx;
-	}
-
-	threadTriangleVertices->reset();
-	threadTriangleIndices->reset();
-}
-
-#endif  ARPEG_PLATFORM_NOTHREAD
-
 Service::GeometryDestination Service::allocateLines(uint32 vertexCount,uint32 indexCount,bool depthtest){
-	core::BufferAllocator* vertices,*indices;
-#ifndef ARPEG_PLATFORM_NOTHREAD
-	getThreadLineBuffers(vertices,indices);
-	if(!vertices->canAllocate(kVertexSize*vertexCount) ||
-		!indices->canAllocate(sizeof(uint16)*indexCount)) 
-		mergeLines(vertices,indices);
-#else
-	vertices = &lines_;indices = &lineIndices_;
-#endif
-	GeometryDestination result = { vertices->size()/kVertexSize,
-		(float*)vertices->allocate(kVertexSize*vertexCount),(uint16*)indices->allocate(sizeof(uint16)*indexCount) };
-	return result;
-}
-Service::GeometryDestination Service::allocateTriangles(uint32 vertexCount,uint32 indexCount){
-	core::BufferAllocator* vertices,*indices;
-#ifndef ARPEG_PLATFORM_NOTHREAD
-	getThreadTriangleBuffers(vertices,indices);
-	if(!vertices->canAllocate(kVertexSize*vertexCount) ||
-		!indices->canAllocate(sizeof(uint16)*indexCount)) 
-		mergeTriangles(vertices,indices);
-#else
-	vertices = &triangles_;indices = &triangleIndices_;
-#endif
-	GeometryDestination result = { vertices->size()/kVertexSize,
-		(float*)vertices->allocate(kVertexSize*vertexCount),(uint16*)indices->allocate(sizeof(uint16)*indexCount) };
+	core::BufferAllocator& vertices = depthtest? linesDepthTest_: lines_;
+	GeometryDestination result = { vertices.size()/kVertexSize,(float*)vertices.allocate(kVertexSize*vertexCount),nullptr };
 	return result;
 }
 
-
-
-void Service::viewProjectionMatrix(const mat44f& matrix) {
-	viewProjection_ = matrix;
-}
 void Service::line(vec3f a,vec3f b,const vec4f& colour,bool depthtest){
 	line(mat44f::identity(),a,b,colour,depthtest);
 }
@@ -182,84 +56,92 @@ void Service::line(const mat44f& matrix,vec3f a,vec3f b,const vec4f& colour,bool
 	float* dest = geometry.vertices;
 	dest[0] = vertices[0].x; dest[1] = vertices[0].y; dest[2] = vertices[0].z; ((uint32*)dest)[3] = c;
 	dest[4] = vertices[1].x; dest[5] = vertices[1].y; dest[6] = vertices[1].z; ((uint32*)dest)[7] = c;
-	geometry.indices[0] = uint16(geometry.indexOffset); geometry.indices[1] = uint16(geometry.indexOffset+1);
 }
-
-void Service::axis(const mat44f& matrix,bool depthtest){
+void Service::line(vec3f a,vec3f b,uint32 colour,bool depthtest) {
+	auto geometry = allocateLines(2,2,depthtest);
+	float* dest = geometry.vertices;
+	dest[0] = a.x; dest[1] = a.y; dest[2] = a.z; ((uint32*)dest)[3] = colour;
+	dest[4] = b.x; dest[5] = b.y; dest[6] = b.z; ((uint32*)dest)[7] = colour;
+}
+void Service::node(const mat44f& matrix,bool depthtest){
 	line(matrix,vec3f(0,0,0),vec3f(1,0,0),vec4f(1,0,0,1),depthtest);
 	line(matrix,vec3f(0,0,0),vec3f(0,1,0),vec4f(0,1,0,1),depthtest);
 	line(matrix,vec3f(0,0,0),vec3f(0,0,1),vec4f(0,0,1,1),depthtest);
 }
-void Service::wireBox(const mat44f& matrix,vec3f min,vec3f max,const vec4f& colour,bool depthtest){
+void Service::box(const mat44f& matrix,vec3f min,vec3f max,const vec4f& colour,bool depthtest){
 	//Transform the vertices
 	vec4f vertices[8];
-	vertices[0] = vec4f(min.x,min.y,min.z,1);
-	vertices[1] = vec4f(max.x,min.y,min.z,1);
-	vertices[2] = vec4f(max.x,max.y,min.z,1);
-	vertices[3] = vec4f(min.x,max.y,min.z,1);
-	vertices[4] = vec4f(min.x,min.y,max.z,1);
-	vertices[5] = vec4f(max.x,min.y,max.z,1);
-	vertices[6] = vec4f(max.x,max.y,max.z,1);
-	vertices[7] = vec4f(min.x,max.y,max.z,1);
+	vec3f vs[8];
+	vertices[0] = matrix*vec4f(min.x,min.y,min.z,1);
+	vertices[1] = matrix*vec4f(max.x,min.y,min.z,1);
+	vertices[2] = matrix*vec4f(max.x,max.y,min.z,1);
+	vertices[3] = matrix*vec4f(min.x,max.y,min.z,1);
+	vertices[4] = matrix*vec4f(min.x,min.y,max.z,1);
+	vertices[5] = matrix*vec4f(max.x,min.y,max.z,1);
+	vertices[6] = matrix*vec4f(max.x,max.y,max.z,1);
+	vertices[7] = matrix*vec4f(min.x,max.y,max.z,1);
+	for(uint32 i = 0;i<8;++i) vs[i] = vertices[i].xyz();
 	auto c = convertColour(colour);
 
-	auto geometry = allocateLines(8,24,depthtest);
-	uint32 indexOffset = geometry.indexOffset;
-	float* dest = geometry.vertices;
-	for(uint32 i =0;i<8;++i){
-		vertices[i] = matrix*vertices[i];
-		dest[0] = vertices[i].x; dest[1] = vertices[i].y; dest[2] = vertices[i].z; ((uint32*)dest)[3] = c;
-		dest += kVertexSize/sizeof(float);
-	}
-	uint16* idx = geometry.indices;
-	idx[0] = uint16(indexOffset); idx[1] = uint16(indexOffset+1);
-	idx[2] = uint16(indexOffset+1); idx[3] = uint16(indexOffset+2);
-	idx[4] = uint16(indexOffset+2); idx[5] = uint16(indexOffset+3);
-	idx[6] = uint16(indexOffset+3); idx[7] = uint16(indexOffset);
-	idx+=8;
-	idx[0] = uint16(indexOffset+4); idx[1] = uint16(indexOffset+5);
-	idx[2] = uint16(indexOffset+5); idx[3] = uint16(indexOffset+6);
-	idx[4] = uint16(indexOffset+6); idx[5] = uint16(indexOffset+7);
-	idx[6] = uint16(indexOffset+7); idx[7] = uint16(indexOffset+4);
-	idx+=8;
-	idx[0] = uint16(indexOffset); idx[1] = uint16(indexOffset+4);
-	idx[2] = uint16(indexOffset+1); idx[3] = uint16(indexOffset+5);
-	idx[4] = uint16(indexOffset+2); idx[5] = uint16(indexOffset+6);
-	idx[6] = uint16(indexOffset+3); idx[7] = uint16(indexOffset+7);
+	line(vs[0],vs[1],c,depthtest);line(vs[1],vs[2],c,depthtest);
+	line(vs[2],vs[3],c,depthtest);line(vs[3],vs[0],c,depthtest);
+
+	line(vs[4],vs[5],c,depthtest);line(vs[5],vs[6],c,depthtest);
+	line(vs[6],vs[7],c,depthtest);line(vs[7],vs[4],c,depthtest);
+	
+	line(vs[0],vs[4],c,depthtest);line(vs[1],vs[5],c,depthtest);
+	line(vs[2],vs[6],c,depthtest);line(vs[3],vs[7],c,depthtest);
 }
-void Service::box(const mat44f& matrix,vec3f min,vec3f max,const vec4f& colour) {
-	//TODO
-	if(colour.w < 1.0f) trianglesHaveOpacity_ = true;
-}
-/*void Service::skeleton(const data::Bone* bones,size_t count,const vec4f& colour,bool depthtest) {
-	//Assume that the bones are sorted hirerachily
-	for(size_t i = 0;i < count;++i){
-		//bones[i].offset;
+void Service::sphere(const mat44f& matrix,vec3f position,float radius,const vec4f& colour,bool depthtest) {
+	float deltaTheta = math::toRadians(float(45));
+	auto c = convertColour(colour);
+	for (uint32 i = 0; i < 360; i += 45){
+
+		float theta = deltaTheta * float(i);
+		float a = radius * sinf(theta);
+		float b = radius * cosf(theta);
+		float c = radius * sinf(theta + deltaTheta);
+		float d = radius * cosf(theta + deltaTheta);
+		vec3f start, end;
+        
+		start = position + vec3f(a, b, 0.0f);
+		end = position + vec3f(c, d, 0.0f);
+		line(start, end, c, depthtest);
+		start = position + vec3f(a, 0.0f, b);
+		end = position + vec3f(c, 0.0f, d);
+		line(start, end, c, depthtest);
+		start = position + vec3f(0.0f, a, b);
+		end = position + vec3f(0.0f, c, d);
+		line(start, end, c, depthtest);
 	}
-}*/
+}
+void Service::skeleton(const mat44f& matrix,const data::Mesh* mesh,const data::Transformation3D* nodes,const vec4f& colour,bool depthtest) {
+	auto count = mesh->skeletonNodeCount();
+	if(!count) return;
+	for(size_t i = 1; i < count;++i){
+		auto parent = mesh->skeletonHierarchy()[i];
+		line(matrix,nodes[parent].translationComponent(),nodes[i].translationComponent(),colour,depthtest);
+	}
+}
 
 void Service::line(vec2f a,vec2f b,const vec4f& colour){
 	line(mat44f::identity(),vec3f(a.x,a.y,0),vec3f(b.x,b.y,0),colour,false);
 }
-void Service::wireRectangle(vec2f min,vec2f max,const vec4f& colour){
-	wireBox(mat44f::identity(),vec3f(min.x,min.y,0),vec3f(max.x,max.y,0),colour,false);
-}
-void Service::rectangle (vec2f min,vec2f max,const vec4f& colour) {
-	box(mat44f::identity(),vec3f(min.x,min.y,0),vec3f(max.x,max.y,0),colour);
+void Service::rectangle(vec2f min,vec2f max,const vec4f& colour){
+	box(mat44f::identity(),vec3f(min.x,min.y,0),vec3f(max.x,max.y,0),colour,false);
 }
 
-void Service::render(Pipeline pipeline) {
-	//Gather all the thread buffers
-#ifndef ARPEG_PLATFORM_NOTHREAD
-	using namespace core::bufferArray;
-	for(ThreadBufferRegistration* i = begin<ThreadBufferRegistration>(threadBuffers_),*e = end<ThreadBufferRegistration>(threadBuffers_);i<e;++i){
-		if(i->isLines) mergeLines(i->vertices,i->indices);
-		else mergeTriangles(i->vertices,i->indices);
-	}
-	threadBuffers_.reset();
-#endif
+void Service::pipeline(const data::Pipeline* pipeline){
+	this->pipeline(pipeline->pipeline());
+}
+void Service::pipeline(Pipeline pipeline){
+	pipeline_ = pipeline;
+	pipelineModelView = Pipeline::Constant("mvp");
+}
+void Service::render(const mat44f& viewProjection) {
+	if(lines_.size() == 0 && linesDepthTest_.size() == 0) return;
 
-	if(lines_.size() == 0 && triangles_.size() == 0) return;
+	glDisable(GL_DEPTH_TEST);
 
 	auto renderer = services::rendering();
 	//Turn off blending
@@ -269,6 +151,7 @@ void Service::render(Pipeline pipeline) {
 	rasterState.cullMode = rasterization::CullNone;
 	renderer->bind(rasterState);
 
+	bool justCreated = false;
 	if(vbo_.isNull()){
 		core::TypeDescriptor vLayout[2] = { { core::TypeDescriptor::TFloat,3 } , { core::TypeDescriptor::TUint8,4 } };
 		const char* vSlots[2] = { "position","colour" };
@@ -277,82 +160,55 @@ void Service::render(Pipeline pipeline) {
 		descriptor.fields = vLayout;
 		descriptor.slots = vSlots;
 
-		ibo_  = renderer->create(rendering::Buffer::Index,true,lineIndices_.size(),lineIndices_.bufferBase());
-		vbo_  = renderer->create(rendering::Buffer::Vertex,true,lines_.size(),lines_.bufferBase());
+		vbo_  = renderer->create(rendering::Buffer::Vertex,true,lines_.size()+linesDepthTest_.size(),nullptr);
 		mesh_ = renderer->create(vbo_,ibo_,descriptor);
-	} else {
-		//Discard + map(slow on ATI? - 'http://hacksoflife.blogspot.ie/2012/04/beyond-glmapbuffer.html')
-#ifndef ARPHEG_RENDERING_GLES
-		renderer->recreate(rendering::Buffer::Index,ibo_,true,lineIndices_.size()+triangleIndices_.size(),nullptr);
-		auto mapping = renderer->map(rendering::Buffer::Index,ibo_);
-		if(lineIndices_.size()) memcpy(mapping.data,lineIndices_.bufferBase(),lineIndices_.size());
-		if(triangleIndices_.size()) memcpy(((uint8*)mapping.data) + lineIndices_.size(),triangleIndices_.bufferBase(),triangleIndices_.size());
-		renderer->unmap(mapping);
-
-		renderer->recreate(rendering::Buffer::Vertex,vbo_,true,lines_.size()+triangles_.size(),nullptr);
-		mapping = renderer->map(rendering::Buffer::Vertex,vbo_);
-		if(lines_.size()) memcpy(mapping.data,lines_.bufferBase(),lines_.size());
-		if(triangles_.size()) memcpy(((uint8*)mapping.data) + lines_.size(),triangles_.bufferBase(),triangles_.size());
-		renderer->unmap(mapping);
-#else
-		renderer->recreate(rendering::Buffer::Index,ibo_,true,lineIndices_.size()+triangleIndices_.size(),nullptr);
-		if(lineIndices_.size()) renderer->update(rendering::Buffer::Index,ibo_,0,lineIndices_.bufferBase(),linesIndices_.size());
-		if(triangleIndices_.size()) renderer->update(rendering::Buffer::Index,ibo_,lineIndices.size(),triangleIndices_.bufferBase(),triangleIndices_.size());
-
-		renderer->recreate(rendering::Buffer::Vertex,vbo_,true,lines_.size()+triangles_.size(),nullptr);
-		if(lines_.size()) renderer->update(rendering::Buffer::Vertex,vbo_,0,lines_.bufferBase(),lines_.size());
-		if(triangles_.size()) renderer->update(rendering::Buffer::Vertex,vbo_,lines_.size(),triangles_.bufferBase(),triangles_.size());
-#endif
+		justCreated = true;
 	}
-	renderer->bind(pipeline);
-	Pipeline::Constant matrixConstant("mvp");
-	renderer->bind(matrixConstant,viewProjection_);
-	renderer->bind(mesh_,rendering::topology::Line,sizeof(uint16));
-	renderer->drawIndexed(0,lineIndices_.size()/sizeof(uint16));
+	
+	//Discard + map(slow on ATI? - 'http://hacksoflife.blogspot.ie/2012/04/beyond-glmapbuffer.html')
+#ifndef ARPHEG_RENDERING_GLES
+	if(!justCreated) renderer->recreate(rendering::Buffer::Vertex,vbo_,true,lines_.size()+linesDepthTest_.size(),nullptr);
+	auto mapping = renderer->map(rendering::Buffer::Vertex,vbo_);
+	if(lines_.size())          memcpy(mapping.data,lines_.bufferBase(),lines_.size());
+	if(linesDepthTest_.size()) memcpy(((uint8*)mapping.data) + lines_.size(),linesDepthTest_.bufferBase(),linesDepthTest_.size());
+	renderer->unmap(mapping);
+#else
+	if(!justCreated) renderer->recreate(rendering::Buffer::Vertex,vbo_,true,lines_.size()+linesDepthTest_.size(),nullptr);
+	if(lines_.size()) renderer->update(rendering::Buffer::Vertex,vbo_,0,lines_.bufferBase(),lines_.size());
+	if(linesDepthTest_.size()) renderer->update(rendering::Buffer::Vertex,vbo_,lines_.size(),linesDepthTest_.bufferBase(),linesDepthTest_.size());
+#endif
+	
+	renderer->bind(pipeline_);
+	renderer->bind(pipelineModelView,viewProjection);
+	renderer->bind(mesh_,rendering::topology::Line);
+	renderer->draw(0,lines_.size()/kVertexSize);
 
-	//Triangles
-	if(!triangles_.size()) return;
-	rasterState.cullMode = rasterization::CullBack;
-	renderer->bind(rasterState);
-	if(trianglesHaveOpacity_) renderer->bind(blending::alpha());
+	glEnable(GL_DEPTH_TEST);
 
+	if(!linesDepthTest_.size()) return;
+
+	renderer->draw(lines_.size()/kVertexSize,linesDepthTest_.size()/kVertexSize);
 }
 
 void Service::servicePreStep(){
 	//Reallocate allocators at frame allocator
 	auto frameAllocator = services::frameAllocator();
-#ifndef ARPEG_PLATFORM_NOTHREAD
-	new(&threadBuffers_) core::BufferAllocator( (services::tasking()->workerCount()+2)*sizeof(ThreadBufferRegistration),frameAllocator,core::BufferAllocator::GrowOnOverflow);
-#endif
-	new(&lines_)       core::BufferAllocator(linesMaxSize,frameAllocator,core::BufferAllocator::GrowOnOverflow);
-	new(&lineIndices_) core::BufferAllocator(lineIndicesMaxSize,frameAllocator,core::BufferAllocator::GrowOnOverflow);
-	new(&triangles_)   core::BufferAllocator(trianglesMaxSize,frameAllocator,core::BufferAllocator::GrowOnOverflow);
-	new(&triangleIndices_) core::BufferAllocator(triangleIndicesMaxSize,frameAllocator,core::BufferAllocator::GrowOnOverflow);
+
+	new(&lines_)            core::BufferAllocator(linesMaxSize,frameAllocator,core::BufferAllocator::GrowOnOverflow);
+	new(&linesDepthTest_)   core::BufferAllocator(linesDepthTestMaxSize,frameAllocator,core::BufferAllocator::GrowOnOverflow);
 	viewProjection_ = mat44f::identity();
-	trianglesHaveOpacity_ = false;
 }
 void Service::servicePostStep() {
 	linesMaxSize = std::max(linesMaxSize,lines_.size());
-	lineIndicesMaxSize = std::max(lineIndicesMaxSize,lineIndices_.size());
-	trianglesMaxSize = std::max(trianglesMaxSize,triangles_.size());
-	triangleIndicesMaxSize = std::max(triangleIndicesMaxSize,triangleIndices_.size());
+	linesDepthTestMaxSize = std::max(linesDepthTestMaxSize,linesDepthTest_.size());
 }
 Service::Service(core::Allocator* allocator) :
 	lines_    (128,services::frameAllocator()),
-	lineIndices_(128,services::frameAllocator()),
-	triangles_(128,services::frameAllocator()),
-	triangleIndices_(128,services::frameAllocator()),
-	threadBuffers_(128,services::frameAllocator())
-{
-	triangleIndicesMaxSize = linesMaxSize = lineIndicesMaxSize = trianglesMaxSize = 8192;
+	linesDepthTest_(128,services::frameAllocator()),
+	pipelineModelView("") {
+	linesDepthTestMaxSize = linesMaxSize = 8192;
 	ibo_ = vbo_ = Buffer::nullBuffer();
 	assertRelease(sizeof(float) == sizeof(uint32));
-	trianglesHaveOpacity_ = false;
-#ifndef ARPEG_PLATFORM_NOTHREAD
-	lineMutex_ = ALLOCATOR_NEW(allocator,core::Mutex);
-	triangleMutex_ = ALLOCATOR_NEW(allocator,core::Mutex);
-	threadBufferMutex_ = ALLOCATOR_NEW(allocator,core::Mutex);
-#endif
 }
 Service::~Service(){
 	if(!vbo_.isNull()){
@@ -361,11 +217,6 @@ Service::~Service(){
 		renderer->release(vbo_);
 		if(!ibo_.isNull()) renderer->release(ibo_);
 	}
-#ifndef ARPEG_PLATFORM_NOTHREAD
-	lineMutex_->~Mutex();
-	triangleMutex_->~Mutex();
-	threadBufferMutex_->~Mutex();
-#endif
 }
 
 } }
