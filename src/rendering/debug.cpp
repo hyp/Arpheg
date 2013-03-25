@@ -169,12 +169,11 @@ static inline uint32 convertColour(const vec4f& colour){
 }
 void Service::line(const mat44f& matrix,vec3f a,vec3f b,const vec4f& colour,bool depthtest){
 	//Transform the vertices
-	auto m = viewProjection_ * matrix;
 	vec4f vertices[2];
 	vertices[0] = vec4f(a.x,a.y,a.z,1);
 	vertices[1] = vec4f(b.x,b.y,b.z,1);
 	for(uint32 i =0;i<2;++i){
-		vertices[i] = m*vertices[i]; vertices[i] = vertices[i] * (1.0f/vertices[i].w);
+		vertices[i] = matrix*vertices[i];
 	}
 
 	auto c = convertColour(colour);
@@ -193,7 +192,6 @@ void Service::axis(const mat44f& matrix,bool depthtest){
 }
 void Service::wireBox(const mat44f& matrix,vec3f min,vec3f max,const vec4f& colour,bool depthtest){
 	//Transform the vertices
-	auto m = viewProjection_ * matrix;
 	vec4f vertices[8];
 	vertices[0] = vec4f(min.x,min.y,min.z,1);
 	vertices[1] = vec4f(max.x,min.y,min.z,1);
@@ -209,7 +207,7 @@ void Service::wireBox(const mat44f& matrix,vec3f min,vec3f max,const vec4f& colo
 	uint32 indexOffset = geometry.indexOffset;
 	float* dest = geometry.vertices;
 	for(uint32 i =0;i<8;++i){
-		vertices[i] = m*vertices[i]; vertices[i] = vertices[i] * (1.0f/vertices[i].w);
+		vertices[i] = matrix*vertices[i];
 		dest[0] = vertices[i].x; dest[1] = vertices[i].y; dest[2] = vertices[i].z; ((uint32*)dest)[3] = c;
 		dest += kVertexSize/sizeof(float);
 	}
@@ -307,6 +305,8 @@ void Service::render(Pipeline pipeline) {
 #endif
 	}
 	renderer->bind(pipeline);
+	Pipeline::Constant matrixConstant("mvp");
+	renderer->bind(matrixConstant,viewProjection_);
 	renderer->bind(mesh_,rendering::topology::Line,sizeof(uint16));
 	renderer->drawIndexed(0,lineIndices_.size()/sizeof(uint16));
 

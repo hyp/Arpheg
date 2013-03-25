@@ -15,7 +15,7 @@ texture:
 
 mesh:
 	id = 'head'
-	path = 'meshes/boblampclean.md5mesh'
+	path = 'meshes/idle.dae'
 		
 	
 	

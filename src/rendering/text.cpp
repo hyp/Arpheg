@@ -83,7 +83,7 @@ void drawGlyphs(batching::Geometry& geometry,vec2i position,const data::Font* fo
 	auto ftype = font->renderingType() & (~fontType::WithDistanceRendering);
 
 	uint32 quadSize = ftype == fontType::Outlined? textOutlinesVertexLayoutDescSize*4: textVertexLayoutDescSize*4;
-	auto xspace = int(font->spacing_.x);
+	auto xspace = int(font->spacing_.x) + ftype == fontType::Outlined? int(font->outline_) : 0;
 	uint8* vs = (uint8*) geometry.vertices;
 	for(uint32 i = 0;i < count;++i){
 		auto glyph = glyphs[i].glyph;

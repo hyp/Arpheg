@@ -3,9 +3,10 @@ pipeline:
 	glsl.vertexAttributes: 'position', 'colour'
 	vertexShader:
 		in vec3 position; in vec4 colour;
+		uniform mat4 mvp;
 		out vec4 vsColour;
 		void main() {
-			gl_Position = vec4(position,1); vsColour = colour;
+			gl_Position = mvp*vec4(position,1); vsColour = colour;
 		}
 	pixelShader:
 		in vec4 vsColour;

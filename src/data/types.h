@@ -78,7 +78,7 @@ namespace data {
 	struct Material {
 		enum { kConstantsVec4fCount = 4 };
 		enum { kMaxTextures = 5 };
-		enum { kConstantsSize = 4*sizeof(vec4f) };
+		enum { kConstantsSize = kConstantsVec4fCount*sizeof(vec4f) };
 
 		inline Material() {}
 		Material(const rendering::Texture2D* textures,size_t textureCount,const void* constants,size_t constantsSize);
