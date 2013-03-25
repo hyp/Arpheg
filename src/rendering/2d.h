@@ -11,12 +11,6 @@ namespace draw2D {
 		};
 	}
 
-	//The textured coloured triangles batch has the following vertex layout:
-	//int16 x2 - position
-	//uint16 x2(normalized) - texture coordinate
-	//uint8  x4(normalized) - colour
-	VertexDescriptor vertexLayout(uint32 mode);
-
 	struct VertexBuilder {
 		uint8* dest;
 
@@ -46,6 +40,27 @@ namespace draw2D {
 		}
 	};
 
+	//The textured coloured triangles batch has the following vertex layout:
+	//float  x2 - position
+	//uint16 x2(normalized) - texture coordinate
+	//uint8  x4(normalized) - colour
+	VertexDescriptor vertexLayout(uint32 mode);
+
+	namespace textured {
+		namespace coloured {
+			void quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint16* tcoords,uint32 colour);
+		}
+		void quad(batching::Geometry& geometry,vec2f min,vec2f max,const uint16* tcoords);
+	}
+
+namespace positionInt16 {
+
+	//The textured coloured triangles batch has the following vertex layout:
+	//int16 x2 - position
+	//uint16 x2(normalized) - texture coordinate
+	//uint8  x4(normalized) - colour
+	VertexDescriptor vertexLayout(uint32 mode);
+
 	namespace textured {
 		namespace coloured {
 			void quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords,uint32 colour);
@@ -56,4 +71,5 @@ namespace draw2D {
 		void quad(batching::Geometry& geometry,vec2i vertices[4],uint32 colours[4]);
 		void quad(batching::Geometry& geometry,vec2i min,vec2i max,uint32 colours[4]);
 	}
-} }
+
+} } }

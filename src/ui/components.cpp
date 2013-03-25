@@ -98,7 +98,7 @@ Image::Image(DataType image,uint32 colour) : image_(image),color_(colour) {
 }
 void Image::draw(Widget* widget,events::Draw& ev) {
 	auto geometry = ev.renderer->allocate(ev.layerId,uint32(Service::kTexturedColouredTrianglesBatch),4,6);
-	rendering::draw2D::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,image_->frames()[0].textureCoords,color_);
+	rendering::draw2D::positionInt16::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,image_->frames()[0].textureCoords,color_);
 }
 vec2i Image::calculateSize() {
 	return image_->size();
@@ -124,7 +124,7 @@ void Rectangle::makeLeftRightGradient(uint32 leftColour,uint32 rightColour){
 }
 void Rectangle::draw(Widget* widget,events::Draw& ev) {
 	auto geometry = ev.renderer->allocate(ev.layerId,uint32(Service::kColouredTrianglesBatch),4,6);
-	rendering::draw2D::coloured::quad(geometry,ev.innerMin(),ev.innerMax(),colors_);
+	rendering::draw2D::positionInt16::coloured::quad(geometry,ev.innerMin(),ev.innerMax(),colors_);
 }
 
 RectangularBorder::RectangularBorder(uint32 colour,int32 thickness){
