@@ -142,7 +142,7 @@ void Service::render(const mat44f& viewProjection) {
 	if(lines_.size() == 0 && linesDepthTest_.size() == 0) return;
 	if(pipeline_ == Pipeline::nullPipeline()){
 		//Default shader.
-		if(auto asset = services::data()->pipeline(services::data()->bundle("core",true),"rendering.debug.pipeline",true)){
+		if(auto asset = services::data()->pipeline(services::data()->bundle("core",true),"debug.pipeline",true)){
 			pipeline(asset);
 		} else {
 			services::logging()->error("Debug renderer has no pipeline!");
