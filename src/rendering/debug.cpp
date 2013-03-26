@@ -140,6 +140,15 @@ void Service::pipeline(Pipeline pipeline){
 }
 void Service::render(const mat44f& viewProjection) {
 	if(lines_.size() == 0 && linesDepthTest_.size() == 0) return;
+	if(pipeline_ == Pipeline::nullPipeline()){
+		//Default shader.
+		if(auto asset = services::data()->pipeline(services::data()->bundle("core",true),"debug.pipeline",true)){
+			pipeline(asset);
+		} else {
+			services::logging()->error("Debug renderer has no pipeline!");
+			return;
+		}
+	}
 
 	glDisable(GL_DEPTH_TEST);
 
@@ -207,6 +216,7 @@ Service::Service(core::Allocator* allocator) :
 	linesDepthTest_(128,services::frameAllocator()),
 	pipelineModelView("") {
 	linesDepthTestMaxSize = linesMaxSize = 8192;
+	pipeline_ = Pipeline::nullPipeline();
 	ibo_ = vbo_ = Buffer::nullBuffer();
 	assertRelease(sizeof(float) == sizeof(uint32));
 }

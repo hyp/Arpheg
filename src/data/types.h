@@ -9,6 +9,7 @@ namespace data {
 	class Service;
 	
 	typedef const char* ID;
+	typedef uint32 BundleID;
 
 	struct Pipeline;
 	struct Image;

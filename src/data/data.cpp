@@ -140,25 +140,32 @@ void Service::releaseTopBundle() {
 	printf(fmt.allocator,"Released data bundle '%s'",bundle.name.string);
 	services::logging()->trace(asCString(fmt.allocator));
 }
-void Service::loadBundle(const char* filename) {
+BundleID Service::loadBundle(const char* filename,const char* id) {
 	io::Data file(filename);
 	auto bundle = newBundle(filename);
+	bundle->name = id;
 	
 	char storage[2048];
 	core::BufferAllocator buffer(core::Bytes(storage,sizeof(storage)));
 	utils::path::dirname(buffer,core::Bytes((void*)filename,strlen(filename)));
 	loadTextBundle(core::bufferStringStream::asCString(buffer),bundle,core::Bytes(file.begin,file.size));
+	return BundleID(core::bufferArray::length<ResourceBundle>(bundles) - 1);
+}
+BundleID Service::getBundle(const char* id,bool optional) {
+	using namespace core::bufferArray;
+	for(size_t i = 0;i<length<ResourceBundle>(bundles);++i){
+		if( !strcmp(nth<ResourceBundle>(bundles,i).name.string,id) ){
+			return BundleID(i);
+		}
+	}
+	if(!optional) assertRelease(false && "Can't find a given bundle");
+	return 0;
 }
 void Service::loadTextBundle(const char* path,ResourceBundle* bundle,core::Bytes bytes){
 	intermediate::bundle::Parser parser;
 	parser.parse(core::Bytes((void*)path,strlen(path)),bytes,this,bundle);
 }
 void Service::endBundle() {
-
-}
-void Service::setCurrentBundle(const char* id) {
-	//TODO
-	assertRelease(false && "Not yet implemented!");
 }
 
 void* Service::getResourceFromID(const char* id) {
@@ -169,6 +176,13 @@ void* Service::getResourceFromID(const char* id) {
 	auto mapper = (IDPointerMapper*)currentBundle->mappingStorage;
 	auto p = mapper->get(core::Bytes((void*)id,strlen(id)));
 	assertRelease(p);
+	return p;
+}
+void* Service::getResourceFromID(BundleID bundle,const char* id,bool optional) {
+	assert(bundle < core::bufferArray::length<ResourceBundle>(bundles));
+	auto mapper = (IDPointerMapper*)core::bufferArray::nth<ResourceBundle>(bundles,bundle).mappingStorage;
+	auto p = mapper->get(core::Bytes((void*)id,strlen(id)));
+	if(!optional) assertRelease(p);
 	return p;
 }
 void* Service::getResourceFromID(ResourceBundle* bundle,core::Bytes id) {
@@ -264,11 +278,11 @@ Mesh::Mesh(SubMesh** submeshes,size_t count) {
 	skeletonLocalTransforms_ = nullptr;
 }
 
-void Service::loadBundle(ID filename,const char* id) {
-	impl()->loadBundle(filename);
+BundleID Service::loadBundle(ID filename,const char* id) {
+	return impl()->loadBundle(filename,id);
 }
-void Service::switchBundle(ID id) {
-	impl()->setCurrentBundle(id);
+BundleID Service::bundle(ID id,bool optional) {
+	return impl()->getBundle(id,optional);
 }
 rendering::Texture2D      Service::texture2D(ID id){
 	return * (rendering::Texture2D*) impl()->getResourceFromID(id);
@@ -296,6 +310,24 @@ Font* Service::font(ID id) {
 }
 Sprite* Service::sprite(ID id) {
 	return (Sprite*) impl()->getResourceFromID(id);
+}
+Pipeline* Service::pipeline(BundleID bundle,ID id,bool optional){
+	return (Pipeline*) impl()->getResourceFromID(bundle,id,optional);
+}
+SubMesh*  Service::submesh(BundleID bundle,ID id,bool optional){
+	return (SubMesh*) impl()->getResourceFromID(bundle,id,optional);
+}
+Mesh*     Service::mesh(BundleID bundle,ID id,bool optional){
+	return (Mesh*) impl()->getResourceFromID(bundle,id,optional);
+}
+animation::Animation* Service::animation(BundleID bundle,ID id,bool optional){
+	return (animation::Animation*) impl()->getResourceFromID(bundle,id,optional);
+}
+Font*     Service::font(BundleID bundle,ID id,bool optional){
+	return (Font*) impl()->getResourceFromID(bundle,id,optional);
+}
+Sprite*   Service::sprite(BundleID bundle,ID id,bool optional){
+	return (Sprite*) impl()->getResourceFromID(bundle,id,optional);
 }
 
 //Direct loading of intermediate resources from the filesystem

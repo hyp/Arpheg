@@ -27,10 +27,9 @@ int main(){
 	rendering::Pipeline::Constant textureConst("texture");
 
 	//Data
-	data->loadBundle(ARPHEG_ROOT_PATH "data/default/default.txt","default");
-	services::debugRendering()->pipeline(data->pipeline("arpheg.debug.pipeline"));
-
+	data->loadBundle(ARPHEG_ROOT_PATH "data/default/core.txt","core");
 	data->loadBundle(ARPHEG_ROOT_PATH "data/default/ui.txt","ui");
+
 	services::ui()->loadData("ui");
 	auto sprite = data->sprite("icon");
 	ui::Image image(sprite);

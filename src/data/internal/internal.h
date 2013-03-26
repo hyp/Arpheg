@@ -123,14 +123,16 @@ namespace internal_ {
 		void releaseTopBundle();
 		void releaseBundles();
 		ResourceBundle* newBundle(const char* name);
-		void loadBundle(const char* filename);
+		BundleID loadBundle(const char* filename,const char* id);
+		BundleID getBundle(const char* id,bool optional);
 		void endBundle();
 		void loadTextBundle(const char* path,ResourceBundle* bundle,core::Bytes bytes);
 		
 		void mapPointerToID(ResourceBundle* bundle,void* ptr,core::Bytes id);
 		void* getResourceFromID(ResourceBundle* bundle,core::Bytes id);
 		void* getResourceFromID(const char* id);
-		void setCurrentBundle(const char* id);
+		void* getResourceFromID(BundleID bundle,const char* id,bool optional);
+		
 		
 #ifndef ARPHEG_DATA_NO3D
 		SubMesh* newSubMesh();
