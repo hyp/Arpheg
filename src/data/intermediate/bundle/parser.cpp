@@ -547,6 +547,9 @@ void Parser::subdata(core::Bytes data) {
 }
 void Parser::set(core::Bytes bytes){
 	if(subparser) subparser->set(bytes);
+	else if(compare(bytes,"id")){
+		bundle->name = string();
+	}
 }
 
 } } }

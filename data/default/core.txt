@@ -1,5 +1,7 @@
+id = 'core'
+
 pipeline:
-	id = 'arpheg.debug.pipeline'
+	id = 'rendering.debug.pipeline'
 	glsl.vertexAttributes: 'position', 'colour'
 	vertexShader:
 		in vec3 position; in vec4 colour;
