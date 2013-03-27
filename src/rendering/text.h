@@ -62,7 +62,8 @@ namespace fontType {
 	uint8 x4(normalized) - colour
 	uint8 x4(normalized) - border colour
 */
-VertexDescriptor vertexLayout(const data::Font* font);
+VertexDescriptor vertexLayout(uint32 type);
+inline VertexDescriptor vertexLayout(const data::Font* font) { return vertexLayout(font->renderingType()); }
 
 // This structure represents a renderable glyph
 struct Glyph {

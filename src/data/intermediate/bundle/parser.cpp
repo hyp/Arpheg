@@ -52,6 +52,28 @@ public:
 	void end();
 };
 
+class Material: public SubParser {
+public:
+	String id;
+	uint32 textureCount;
+	String texturePath[::data::Material::kMaxTextures];
+	uint32 constantCount;
+	vec4f  constants[::data::Material::kConstantsVec4fCount];
+
+	Material() : textureCount(0),constantCount(0) {}
+	void set(core::Bytes id);
+	void end();
+
+};
+void Material::set(core::Bytes id){
+	if(equals(id,"id")) this->id = parser->string();
+}
+void Material::end() {
+	auto material = parser->service->allocateObject<::data::Material>();
+	//new(obj) ::data::Pipeline(pipeline);
+	parser->service->mapPointerToID(parser->bundle,material,id);
+}
+
 //A mesh from the text bundle importer
 class Mesh: public SubParser {
 	String id;
@@ -219,6 +241,49 @@ void Mesh::end(){
 	parser->popPath();
 }
 
+class Sampler: public SubParser {
+	String id;
+	rendering::texture::SamplerDescriptor sampler;
+
+	void set(core::Bytes id);
+	void end();
+};
+
+void Sampler::set(core::Bytes id){
+	using namespace rendering::texture;
+
+	if(equals(id,"id")) this->id = parser->string();
+	if(equals(id,"filter")){
+		String values[3];
+		auto count = parser->strings(values,3);
+		sampler.filter = 0;
+		for(uint32 i = 0;i<count;++i){
+			auto value = values[i];
+			if(equals(value,"MinPoint")) sampler.filter |= SamplerDescriptor::MinPoint;
+			else if(equals(value,"MagPoint")) sampler.filter  |= SamplerDescriptor::MagPoint;
+			else if(equals(value,"MinLinear")) sampler.filter |= SamplerDescriptor::MinLinear;
+			else if(equals(value,"MagLinear")) sampler.filter |= SamplerDescriptor::MagLinear;
+			else if(equals(value,"MipPoint")) sampler.filter  |= SamplerDescriptor::MipPoint;
+			else if(equals(value,"MagPoint")) sampler.filter  |= SamplerDescriptor::MipLinear;
+		}
+	} else if(equals(id,"addressMode")) {
+		auto value = parser->string();
+		uint32 mode = 0;
+		if(equals(value,"Clamp")) mode = SamplerDescriptor::Clamp;
+		else if(equals(value,"Repeat")) mode = SamplerDescriptor::Repeat;
+		else if(equals(value,"Mirror")) mode = SamplerDescriptor::Mirror;
+	} else if(equals(id,"anisotropy")) {
+		sampler.maxAnisotropy = uint32(parser->number());
+	} else if(equals(id,"mipLodBias")) {
+		sampler.mipLodBias = parser->number();
+	}
+}
+void Sampler::end() {
+	auto renderer = services::rendering();
+	auto obj = parser->service->allocateObject<rendering::Sampler>();
+	*obj = renderer->create(sampler);
+	parser->service->mapPointerToID(parser->bundle,obj,id);
+}
 
 class Pipeline: public SubParser {
 	uint32 embeddedShaderType;
@@ -475,6 +540,8 @@ Parser::Parser() :
 		registerSubdata<Pipeline>    ("pipeline");
 		registerSubdata<Texture>     ("texture");
 		registerSubdata<TextureArray>("textureArray");
+		registerSubdata<Material>   ("material");
+		registerSubdata<Sampler>("sampler");
 		registerSubdata<Font>("font");
 		registerSubdata<Sprite>("sprite");
 }

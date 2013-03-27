@@ -36,8 +36,8 @@ private:
 	Allocator* threadStorage_;
 	
 	//Non copyable
-	inline NodeTransformationBuffer(const NodeTransformationBuffer& other) {}
-	inline void operator = (const NodeTransformationBuffer& other) {}
+	inline NodeTransformationBuffer(const NodeTransformationBuffer&) {}
+	inline void operator = (const NodeTransformationBuffer&) {}
 };
 inline Buffer NodeTransformationBuffer::buffer() const {
 	return constantBuffer_;

@@ -70,15 +70,6 @@ void Service::drawWidgets() {
 void Service::setFocus(Widget* widget) {
 	focused_ = widget;
 }
-void Service::loadData(data::ID bundle) {
-	auto data = services::data();
-	//TODOdata->switchBundle(bundle);
-	uiPipeline = data->pipeline("ui.pipeline");
-	uiAtlas = data->texture2D("ui.atlas");
-	textPipeline = data->pipeline("text.pipeline");
-	outlineTextPipeline = data->pipeline("text.outlined.pipeline");
-}
-
 void Service::render() {
 	auto size = services::rendering()->context()->frameBufferSize();
 	mat44f matrix = mat44f::ortho(vec2f(0,0),vec2f(float(size.x),float(size.y)));
@@ -87,44 +78,25 @@ void Service::render() {
 core::Allocator* Service::componentAllocator() const {
 	return core::memory::globalAllocator();
 }
-void Service::enterLayer(rendering::Texture2D t) {
-	assert(uiPipeline && "UI data not loaded!");
-	using namespace rendering::ui;
-
-	Batch batch;
-	batch.vertexLayout = rendering::draw2D::positionInt16::vertexLayout(rendering::draw2D::mode::Textured|rendering::draw2D::mode::Coloured);
-	batch.name = "uiMainBatch";
-	Batch::Material material;
-	material.pipeline = uiPipeline->pipeline();
-	material.matrix   = rendering::Pipeline::Constant("matrix");
-	material.residentTextures = true;
-	material.textureCount = 1;
-	material.textures[0].texture = t;
-	material.textures[0].constant = rendering::Pipeline::Constant("texture");
-	renderer_->registerBatch(batch,material);
+void Service::enterLayer() {
+	rendering::ui::Batch batch;
+	batch.name = "innerGeometry";
+	batch.depth = 0;
+	renderer_->registerBatch(batch,rendering::ui::Service::TexturedColouredPipeline);
+	
 	//assert(kTexturedColouredTrianglesBatch == );
 	
-	batch.vertexLayout = rendering::draw2D::positionInt16::vertexLayout(rendering::draw2D::mode::Coloured);
-	batch.name = "Coloured triangles";
-	material.pipeline = uiPipeline->pipeline();
-	material.matrix   = rendering::Pipeline::Constant("matrix");
-	material.residentTextures = false;
-	material.textureCount = 0;	
-	renderer_->registerBatch(batch,material);
-	//assert(kColouredTrianglesBatch == );
 }
 void Service::servicePreStep(){
 	renderer_->servicePreStep();
 	
-	renderer_->registerFontPipelines(textPipeline->pipeline(),outlineTextPipeline->pipeline());
-	//enterLayer();
+	enterLayer();
 }
 void Service::servicePostStep(){
 	renderer_->servicePostStep();
 }
 Service::Service(core::Allocator* allocator){
 	renderer_ = ALLOCATOR_NEW(allocator,rendering::ui::Service);
-	uiPipeline = nullptr;
 	root_ = ALLOCATOR_NEW(allocator,Group);
 	focused_ = nullptr;
 }

@@ -469,6 +469,12 @@ namespace rendering {
 		glDrawElements(currentPrimitiveTopology,count,currentIndexSize,(const void*)offset);
 #endif
 	}
+	void Service::drawIndexed(uint32 offset,uint32 count,uint32 baseVertex) {
+#ifdef ARPHEG_RENDERING_GLES
+#else
+		glDrawElementsBaseVertex(currentPrimitiveTopology,count,currentIndexSize,(const void*)offset,baseVertex);
+#endif
+	}
 	
 	static inline GLenum blendMode(blending::Blend mode){
 		using namespace blending;

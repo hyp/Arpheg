@@ -97,11 +97,30 @@ void Renderable::checkOpaque(const uint32* colours,uint32 n){
 Image::Image(DataType image,uint32 colour) : image_(image),color_(colour) {
 }
 void Image::draw(Widget* widget,events::Draw& ev) {
-	auto geometry = ev.renderer->allocate(ev.layerId,uint32(Service::kTexturedColouredTrianglesBatch),4,6);
+	auto geometry = ev.renderer->allocate(ev.layerId,uint32(Service::kTexturedColouredTrianglesBatch),ev.renderer->uiTexture(image_->texture_),4,6);
 	rendering::draw2D::positionInt16::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,image_->frames()[0].textureCoords,color_);
 }
 vec2i Image::calculateSize() {
 	return image_->size();
+}
+
+static data::normalizedUint16::Type defaultTextureCoords[] = { 0,0, data::normalizedUint16::one , data::normalizedUint16::one };
+
+TextureView::TextureView(rendering::Texture2D texture,rendering::Pipeline pipeline) : pipeline_(pipeline),texture_(texture) {}
+void TextureView::draw(Widget* widget,events::Draw& ev) {
+	if(texture_ == rendering::Texture2D::null()) return;
+
+	uint32 batchId = uint32(Service::kTexturedColouredTrianglesBatch);
+	if(!(pipeline_ == rendering::Pipeline::nullPipeline())){
+		//Create a new batch for this texture.
+		rendering::ui::Batch batch;
+		batch.depth = 0;
+		batch.name  = "TextureView";
+		auto pipelineId = ev.renderer->uiPipeline(pipeline_);
+		batchId = ev.renderer->registerBatch(batch,pipelineId);
+	}
+	auto geometry = ev.renderer->allocate(ev.layerId,batchId,ev.renderer->uiTexture(texture_),4,6);
+	rendering::draw2D::positionInt16::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,defaultTextureCoords,0xFFffFFff);	
 }
 
 Rectangle::Rectangle(uint32 colour){
@@ -123,8 +142,9 @@ void Rectangle::makeLeftRightGradient(uint32 leftColour,uint32 rightColour){
 	checkOpaque(colors_,4);
 }
 void Rectangle::draw(Widget* widget,events::Draw& ev) {
-	auto geometry = ev.renderer->allocate(ev.layerId,uint32(Service::kColouredTrianglesBatch),4,6);
-	rendering::draw2D::positionInt16::coloured::quad(geometry,ev.innerMin(),ev.innerMax(),colors_);
+	auto geometry = ev.renderer->allocate(ev.layerId,uint32(Service::kTexturedColouredTrianglesBatch),4,6);
+
+	rendering::draw2D::positionInt16::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,defaultTextureCoords,colors_);
 }
 
 RectangularBorder::RectangularBorder(uint32 colour,int32 thickness){

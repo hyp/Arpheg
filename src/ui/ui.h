@@ -12,7 +12,6 @@ class Service {
 public:
 	enum {
 		kTexturedColouredTrianglesBatch = 0,
-		kColouredTrianglesBatch = 1,
 	};
 
 	void setFocus(Widget* widget);
@@ -20,8 +19,6 @@ public:
 	inline Group* root() const;
 	inline rendering::ui::Service* renderer() const;
 	core::Allocator* componentAllocator() const;
-
-	void loadData(data::ID bundle);
 	
 	//Tasks(Not parallel)
 	void updateWidgets(); //NB: this invokes the connected callbacks.
@@ -35,15 +32,11 @@ public:
 	Service(core::Allocator* allocator);
 	~Service();
 
-	void enterLayer(rendering::Texture2D t);
+	void enterLayer();
 private:
 	rendering::ui::Service* renderer_;
 	Group* root_;
 	Widget* focused_;
-	data::Pipeline* textPipeline,*outlineTextPipeline;
-	data::Pipeline* uiPipeline;
-	rendering::Texture2D uiAtlas;
-	
 };
 inline rendering::ui::Service* Service::renderer() const { return renderer_; }
 inline Group*  Service::root()    const { return root_;    }

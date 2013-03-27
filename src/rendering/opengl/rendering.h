@@ -87,6 +87,7 @@ namespace rendering {
 
 		void draw(uint32 offset,uint32 count);
 		void drawIndexed(uint32 offset,uint32 count);
+		void drawIndexed(uint32 offset,uint32 count,uint32 baseVertex);
 
 	public:
 		// State for the next draw invocation

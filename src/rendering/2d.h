@@ -56,20 +56,20 @@ namespace draw2D {
 namespace positionInt16 {
 
 	//The textured coloured triangles batch has the following vertex layout:
-	//int16 x2 - position
+	//int16 x4 - position + instance properties(texture, etc)
 	//uint16 x2(normalized) - texture coordinate
 	//uint8  x4(normalized) - colour
 	VertexDescriptor vertexLayout(uint32 mode);
 
 	namespace textured {
 		namespace coloured {
-			void quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords,uint32 colour);
+			inline void quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords,uint32 colour);
+			void quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords,uint32 colours[4]);
 		}
-		void quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords);
 	}
-	namespace coloured {
-		void quad(batching::Geometry& geometry,vec2i vertices[4],uint32 colours[4]);
-		void quad(batching::Geometry& geometry,vec2i min,vec2i max,uint32 colours[4]);
+	inline void textured::coloured::quad(batching::Geometry& geometry,vec2i min,vec2i max,const uint16* tcoords,uint32 colour){
+		uint32 colours[4] = {colour,colour,colour,colour};
+		quad(geometry,min,max,tcoords,colours);
 	}
 
 } } }

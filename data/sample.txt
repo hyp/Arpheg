@@ -1,3 +1,4 @@
+id = 'sample'
 
 pipeline:
 	id = 'default'
@@ -12,13 +13,22 @@ font:
 texture:
 	id = 'crate'
 	path = 'meshes/crate.tga'
+	
+texture:
+	id = 'ui.atlas'
+	path = 'meshes/crate.tga'
+
+sprite:
+	id = 'icon'
+	texture = 'ui.atlas'
+	frame: 0,0, 1.0,1.0
 
 mesh:
 	id = 'head'
 	path = 'meshes/idle.dae'
+	
+
 		
-	
-	
 
 
 	

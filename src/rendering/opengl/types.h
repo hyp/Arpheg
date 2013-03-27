@@ -38,6 +38,9 @@ namespace rendering {
 	struct Texture2D {
 		uint32 id;
 		uint32 type;
+
+		static inline Texture2D null() { Texture2D result = { 0,0 }; return result; }
+		inline bool operator ==(Texture2D other) const { return id == other.id; }
 	};
 	struct Texture2DArray {
 		uint32 id;

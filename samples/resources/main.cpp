@@ -27,13 +27,13 @@ int main(){
 	rendering::Pipeline::Constant textureConst("texture");
 
 	//Data
-	data->loadBundle(ARPHEG_ROOT_PATH "data/default/core.txt","core");
-	data->loadBundle(ARPHEG_ROOT_PATH "data/default/ui.txt","ui");
+	data->loadBundle(ARPHEG_ROOT_PATH "data/core/core.txt","core");
 
-	services::ui()->loadData("ui");
-	auto sprite = data->sprite("icon");
-	ui::Image image(sprite);
-	ui::Widget imageWidget(vec2i(0,0),renderer->context()->frameBufferSize());
+
+	data->loadBundle(ARPHEG_ROOT_PATH "data/sample.txt","data");
+
+	ui::Image image(data->sprite("icon"));
+	ui::Widget imageWidget(vec2i(0,0),vec2i(64,64));
 	imageWidget.addComponent(&image);
 	ui::Clickable button;
 	imageWidget.addComponent(&button);
@@ -48,9 +48,12 @@ int main(){
 	};
 	This s(imageWidget);
 
-	
+	ui::TextureView tview;
+	ui::Widget depthView(vec2i(128,128),vec2i(256,256));
+	depthView.addComponent(&tview);
+	services::ui()->root()->addChild(&depthView);
 
-	data->loadBundle(ARPHEG_ROOT_PATH "data/sample.txt","data");	
+		
 	auto mesh    = data->mesh("head");
 	auto animation = data->animation("head.animation.0");
 	auto program = data->pipeline("default");
@@ -169,16 +172,17 @@ int main(){
 
 		rendering::texture::Descriptor2D desc;
 		auto ts = depthBuffer.getTexels(desc);
-		auto depthTexture = renderer->create(desc,ts);
+		tview.texture_  = renderer->create(desc,ts);
+		tview.pipeline_ = services::data()->pipeline(services::data()->bundle("core",true),"rendering.visualize.depthBuffer.pipeline",true)->pipeline();
 
 		char fps[128];
 		sprintf(fps,"Dt = %f,%f,%d,%s",services::timing()->dt(),profRasterizeTiles.currentTime(),cov,vis?"true":"false");
 		text.string_ = core::Bytes((void*)fps,strlen(fps));
-		services::ui()->enterLayer(depthTexture);
+		
 		services::ui()->drawWidgets();
 		services::ui()->render();
 
-		renderer->release(depthTexture);
+		renderer->release(tview.texture_);
 		services::rendering()->context()->swapBuffers();
 		services::postStep();
 	}

@@ -311,6 +311,16 @@ Font* Service::font(ID id) {
 Sprite* Service::sprite(ID id) {
 	return (Sprite*) impl()->getResourceFromID(id);
 }
+
+rendering::Texture2D  Service::texture2D(BundleID bundle,ID id,bool optional){
+	return * (rendering::Texture2D*) impl()->getResourceFromID(bundle,id,optional);
+}
+rendering::Texture2DArray Service::texture2DArray(BundleID bundle,ID id,bool optional){
+	return * (rendering::Texture2DArray*) impl()->getResourceFromID(bundle,id,optional);
+}
+rendering::Sampler Service::sampler(BundleID bundle,ID id,bool optional){
+	return * (rendering::Sampler*) impl()->getResourceFromID(bundle,id,optional);
+}
 Pipeline* Service::pipeline(BundleID bundle,ID id,bool optional){
 	return (Pipeline*) impl()->getResourceFromID(bundle,id,optional);
 }

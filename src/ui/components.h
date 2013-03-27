@@ -75,6 +75,15 @@ public:
 	const data::Sprite* image_;
 	uint32 color_;
 };
+class TextureView: public Renderable {
+public:
+	TextureView(rendering::Texture2D texture = rendering::Texture2D::null(),rendering::Pipeline pipeline = rendering::Pipeline::nullPipeline());
+
+	void draw(Widget* widget,events::Draw& ev);
+
+	rendering::Pipeline  pipeline_;
+	rendering::Texture2D texture_;
+};
 class Rectangle: public Renderable {
 public:
 	Rectangle(uint32 colour = 0xFFffFFff);

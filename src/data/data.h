@@ -35,6 +35,9 @@ namespace data {
 		Sprite* sprite(ID id);
 
 
+		rendering::Texture2D      texture2D(BundleID bundle,ID id,bool optional = false);
+		rendering::Texture2DArray texture2DArray(BundleID bundle,ID id,bool optional = false);
+		rendering::Sampler sampler(BundleID bundle,ID id,bool optional = false);
 		Pipeline* pipeline(BundleID bundle,ID id,bool optional = false);
 		SubMesh*  submesh(BundleID bundle,ID id,bool optional = false);
 		Mesh* mesh(BundleID bundle,ID id,bool optional = false);

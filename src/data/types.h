@@ -153,6 +153,7 @@ namespace data {
 	public:
 		typedef uint16 SkeletonJointId;
 		enum { kMaxSkeletonNodes = 0xFFFF };
+		enum { kMaxBones = 128 };
 
 		explicit Mesh(SubMesh* singleSubMesh);
 		Mesh(SubMesh** submeshes,size_t count);

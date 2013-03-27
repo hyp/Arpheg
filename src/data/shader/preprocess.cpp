@@ -21,6 +21,7 @@ core::Bytes Preprocessor::preprocess(core::Bytes source){
 
 #ifdef ARPHEG_RENDERING_GL
 
+
 	auto string = glGetString(GL_SHADING_LANGUAGE_VERSION);
 	char versionHeader[] = { "#version xxx core\n" };
 	versionHeader[9]=string[0];
@@ -47,4 +48,5 @@ core::Bytes Preprocessor::preprocess(core::Bytes source){
 	return source;
 #endif
 }
+
 } }

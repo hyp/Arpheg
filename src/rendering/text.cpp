@@ -20,8 +20,8 @@ static const size_t textVertexLayoutDescSize = 2*sizeof(int16) + 2*sizeof(data::
 static const size_t textOutlinesVertexLayoutDescSize = textVertexLayoutDescSize + sizeof(uint8)*4;
 
 //Vertex layout for rendering text
-VertexDescriptor vertexLayout(const data::Font* font){
-	auto ftype = font->renderingType() & (~fontType::WithDistanceRendering);
+VertexDescriptor vertexLayout(uint32 type){
+	auto ftype = type & (~fontType::WithDistanceRendering);
 	VertexDescriptor result;
 	if(ftype == fontType::Default){
 		result.count = 4;result.fields=textVertexLayoutDesc;
