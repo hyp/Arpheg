@@ -8,7 +8,11 @@ pipeline:
 
 font:
 	id = 'font'
-	path = 'fonts/font.fnt'
+	path = 'fonts/lily64pxOutlined.fnt'
+	
+font:
+	id = 'fonts.lily64px'
+	path = 'fonts/lily64px.fnt'
 	
 texture:
 	id = 'crate'

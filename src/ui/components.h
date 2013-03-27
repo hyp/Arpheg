@@ -35,13 +35,30 @@ public:
 protected:
 	uint32 flags_;
 };
+
+//Layouts.
 class Layout: public Component {
 public:
+	Layout();
+	void  contentsMargins(int32 left,int32 top,int32 right,int32 bottom);
+	inline vec4i contentsMargins() const;
+	void spacing(int32 space);
+	void spacing(vec2i space);
+	inline vec2i spacing() const;
+
+private:
+	vec4i contentsMargins_;//TODO: replace by int[4]
+	vec2i spacing_;
 };
+inline vec4i Layout::contentsMargins() const { return contentsMargins_; }
+inline vec2i Layout::spacing() const { return spacing_; }
+
 class FillLayout: public Layout {
 public:
 	void onLayout(Widget* widget,events::Layout& layout);
 };
+
+
 class Renderable: public Component {
 public:
 	enum {

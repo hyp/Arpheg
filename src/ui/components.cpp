@@ -79,8 +79,19 @@ void Group::addChild(Widget* child) {
 	*i = child;
 }
 
+Layout::Layout() : contentsMargins_(0,0,0,0),spacing_(0,0) {}
+void  Layout::contentsMargins(int32 left,int32 top,int32 right,int32 bottom){
+	contentsMargins_ = vec4i(left,top,right,bottom);
+}
+void Layout::spacing(int32 space) {
+	spacing_.x = spacing_.y = space;
+}
+void Layout::spacing(vec2i space) {
+	spacing_ = space;
+}
 void FillLayout::onLayout(Widget* widget,events::Layout& layout) {
-	widget->move(vec2i(0,0),layout.parent->size());
+	auto margins = contentsMargins();
+	widget->move(vec2i(margins.x,margins.y),layout.parent->size()-vec2i(margins.x+margins.z,margins.y+margins.w));
 }
 
 Renderable::Renderable() {

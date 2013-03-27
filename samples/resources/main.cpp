@@ -56,8 +56,8 @@ int main(){
 	auto mesh    = data->mesh("head");
 	auto animation = data->animation("head.animation.0");
 	auto program = data->pipeline("default");
-	auto font    = data->font("font");
-
+	auto font    = data->font("fonts.lily64px");
+	auto fontOutlined    = data->font("font");
 
 	ui::Text text("Hello",font,0xFFFFFFFF,0xFF0000FF);
 	ui::Widget textWidget(vec2i(32,402),vec2i(100,400));

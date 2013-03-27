@@ -109,7 +109,7 @@ pipeline:
 		out vec4 fragment;
 		void main(){
 			float value = dot(texture2D(textures,vsTexcoord),vsChannelMask);
-			fragment = vsColour*value;
+			fragment = vec4(vsColour.xyz,vsColour.w*value);
 		}
 	
 	
@@ -130,8 +130,10 @@ pipeline:
 		out vec4 fragment;
 		void main(){
 			float value = dot(texture2D(textures,vsTexcoord),vsChannelMask);
-			if(value > 0.69)
-				 fragment = vec4(vsColour.xyz*(2.0*value - 1.0),vsColour.a);
+			if(value > 0.69){
+				 float k = (2.0*value - 1.0);
+				 fragment = vec4(vsColour.xyz*k + vsBorderColour.xyz*(1.0-k),vsColour.a);
+			}
 			else fragment = vec4(vsBorderColour.xyz,value*vsBorderColour.a);
 		}
 	
