@@ -50,7 +50,14 @@ void Service::updateWidgets() {
 	handler.focused = focused_;
 	services::input()->handleEvents(&handler);
 
-	//TODO: Handle application events - resize/activate/deactivate?
+	//Handle resize 
+	auto newRootSize = services::rendering()->context()->frameBufferSize();
+	if(rootSize_.x != newRootSize.x || rootSize_.y != newRootSize.y){
+		Widget widget;
+		widget.addComponent(root_);
+		widget.resize(newRootSize);
+		rootSize_ = newRootSize;
+	}
 }
 void Service::drawWidgets() {
 	core::BufferAllocator glyphBuffer(sizeof(rendering::text::Glyph)*128,&services::tasking()->threadContext().frameAllocator(),core::BufferAllocator::GrowOnOverflow);	
@@ -60,11 +67,12 @@ void Service::drawWidgets() {
 	drawEvent.renderer = renderer_;
 	drawEvent.glyphExtractionBuffer = &glyphBuffer;
 	drawEvent.position = vec2i(0,0);
-	auto size = services::rendering()->context()->frameBufferSize();
-	drawEvent.size = vec2i(size.x,size.y);
+	drawEvent.size = vec2i(rootSize_.x,rootSize_.y);
 	Widget widget;
 	widget.addComponent(root_);
 	widget.draw(drawEvent);
+
+	renderer_->prepareRendering();
 }
 
 void Service::setFocus(Widget* widget) {
@@ -80,12 +88,15 @@ core::Allocator* Service::componentAllocator() const {
 }
 void Service::enterLayer() {
 	rendering::ui::Batch batch;
+	//batch 0 
 	batch.name = "innerGeometry";
 	batch.depth = 0;
 	renderer_->registerBatch(batch,rendering::ui::Service::TexturedColouredPipeline);
 	
-	//assert(kTexturedColouredTrianglesBatch == );
-	
+	//batch 1
+	batch.name = "borderGeometry";
+	batch.depth = 10;
+	renderer_->registerBatch(batch,rendering::ui::Service::TexturedColouredPipeline);
 }
 void Service::servicePreStep(){
 	renderer_->servicePreStep();
@@ -99,6 +110,7 @@ Service::Service(core::Allocator* allocator){
 	renderer_ = ALLOCATOR_NEW(allocator,rendering::ui::Service);
 	root_ = ALLOCATOR_NEW(allocator,Group);
 	focused_ = nullptr;
+	rootSize_ = vec2i(0,0);
 }
 Service::~Service(){
 	renderer_->~Service();

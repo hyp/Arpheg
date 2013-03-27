@@ -93,9 +93,9 @@ void Service::box(const mat44f& matrix,vec3f min,vec3f max,const vec4f& colour,b
 	line(vs[2],vs[6],c,depthtest);line(vs[3],vs[7],c,depthtest);
 }
 void Service::sphere(const mat44f& matrix,vec3f position,float radius,const vec4f& colour,bool depthtest) {
-	float deltaTheta = math::toRadians(float(45));
+	const float deltaTheta = math::pi*2.0f / float(12);
 	auto c = convertColour(colour);
-	for (uint32 i = 0; i < 360; i += 45){
+	for (uint32 i = 0; i < 12;++i){
 
 		float theta = deltaTheta * float(i);
 		float a = radius * sinf(theta);
@@ -106,13 +106,13 @@ void Service::sphere(const mat44f& matrix,vec3f position,float radius,const vec4
         
 		start = position + vec3f(a, b, 0.0f);
 		end = position + vec3f(c, d, 0.0f);
-		line(start, end, c, depthtest);
+		line(matrix,start,end,colour,depthtest);
 		start = position + vec3f(a, 0.0f, b);
 		end = position + vec3f(c, 0.0f, d);
-		line(start, end, c, depthtest);
+		line(matrix,start,end,colour,depthtest);
 		start = position + vec3f(0.0f, a, b);
 		end = position + vec3f(0.0f, c, d);
-		line(start, end, c, depthtest);
+		line(matrix,start,end,colour,depthtest);
 	}
 }
 void Service::skeleton(const mat44f& matrix,const data::Mesh* mesh,const data::Transformation3D* nodes,const vec4f& colour,bool depthtest) {

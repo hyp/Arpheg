@@ -278,8 +278,8 @@ Mesh::Mesh(SubMesh** submeshes,size_t count) {
 	skeletonLocalTransforms_ = nullptr;
 }
 
-BundleID Service::loadBundle(ID filename,const char* id) {
-	return impl()->loadBundle(filename,id);
+BundleID Service::loadBundle(const char* filename) {
+	return impl()->loadBundle(filename,"");
 }
 BundleID Service::bundle(ID id,bool optional) {
 	return impl()->getBundle(id,optional);

@@ -212,9 +212,9 @@ namespace rendering {
 	}
 
 	static void onGLShaderError(GLuint id, bool shader = true) {
-		char buf[256];
-		if (!shader) glGetProgramInfoLog(id, 256, 0, buf);
-		else glGetShaderInfoLog(id, 256, 0, buf);
+		char buf[512];
+		if (!shader) glGetProgramInfoLog(id, sizeof(buf), 0, buf);
+		else glGetShaderInfoLog(id, sizeof(buf), 0, buf);
 		services::logging()->resourceError("GLSL Shader/Program compilation failure!",buf);
 	}
 	static GLuint createShader(GLenum type, const char* src,size_t length) {
@@ -358,13 +358,15 @@ namespace rendering {
 				return;
 			}
 		}
-		//assert(false);
+		constant.location = -2;
 	}
 	void Service::bind(Pipeline::Constant& constant,void* data) {
-		if(constant.location == -1){
+		if(constant.location < 0){
+			if(constant.location == -2) return;
 			initUniform(currentPipeline,constant);
-			if(constant.location == -1) return;
+			if(constant.location == -2) return;
 		}
+
 		GLint location = constant.location;
 
 		switch(constant.coreTypeId){
@@ -382,31 +384,37 @@ namespace rendering {
 		}
 	}
 	void Service::bind(Pipeline::Constant& constant,const mat44f& matrix) {
-		if(constant.location == -1){
+		if(constant.location < 0){
+			if(constant.location == -2) return;
 			initUniform(currentPipeline,constant);
-			if(constant.location == -1) return;
+			if(constant.location == -2) return;
 		}
 		GLint location = constant.location;
 		assert(constant.coreTypeId == TMat44);
 		glUniformMatrix4fv(location,constant.count,false,(const GLfloat*)&matrix.a.x);
 	}
 	void Service::bind(Pipeline::Constant& constant,const mat44f* matrix) {
-		if(constant.location == -1){
+		if(constant.location < 0){
+			if(constant.location == -2) return;
 			initUniform(currentPipeline,constant);
-			if(constant.location == -1) return;
+			if(constant.location == -2) return;
 		}
+
 		GLint location = constant.location;
 		assert(constant.coreTypeId == TMat44);
 		glUniformMatrix4fv(location,constant.count,false,(const GLfloat*)&matrix->a.x);
 	}
 	void Service::bind(Pipeline::Constant& constant,Buffer data,size_t offset,size_t size) {
-		if(constant.location == -1){
-			constant.location = glGetUniformBlockIndex(currentPipeline,constant.name);
-			if(constant.location == -1) return;
+		if(constant.location < 0){
+			if(constant.location == -2) return;
+			initUniform(currentPipeline,constant);
+			if(constant.location == -2) return;
 		}
-		if(offset == 0 && size == 0)  glBindBufferBase     (GL_UNIFORM_BUFFER,0,data.id);
-		else glBindBufferRange(GL_UNIFORM_BUFFER,0,data.id,offset,size);
-		glUniformBlockBinding(currentPipeline,constant.location,0);
+
+		uint32 slot = 0;
+		if(offset == 0 && size == 0)  glBindBufferBase(GL_UNIFORM_BUFFER,slot,data.id);
+		else glBindBufferRange(GL_UNIFORM_BUFFER,slot,data.id,offset,size);
+		glUniformBlockBinding(currentPipeline,constant.location,slot);
 	}
 
 	/*void Service::bindVertices(Buffer buffer) {
@@ -471,6 +479,7 @@ namespace rendering {
 	}
 	void Service::drawIndexed(uint32 offset,uint32 count,uint32 baseVertex) {
 #ifdef ARPHEG_RENDERING_GLES
+		assert(false && "Unsupported!");
 #else
 		glDrawElementsBaseVertex(currentPrimitiveTopology,count,currentIndexSize,(const void*)offset,baseVertex);
 #endif

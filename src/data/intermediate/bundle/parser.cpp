@@ -264,7 +264,7 @@ void Sampler::set(core::Bytes id){
 			else if(equals(value,"MinLinear")) sampler.filter |= SamplerDescriptor::MinLinear;
 			else if(equals(value,"MagLinear")) sampler.filter |= SamplerDescriptor::MagLinear;
 			else if(equals(value,"MipPoint")) sampler.filter  |= SamplerDescriptor::MipPoint;
-			else if(equals(value,"MagPoint")) sampler.filter  |= SamplerDescriptor::MipLinear;
+			else if(equals(value,"MipLinear")) sampler.filter  |= SamplerDescriptor::MipLinear;
 		}
 	} else if(equals(id,"addressMode")) {
 		auto value = parser->string();

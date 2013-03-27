@@ -13,6 +13,9 @@ namespace rendering {
 namespace ui {
 
 struct Batch {
+	enum { kMaxLayer = 0xFF };
+	enum { kMaxDepth = 0xFF };
+
 	typedef batching::Geometry Geometry;
 
 	size_t verticesSize,indicesSize;
@@ -77,6 +80,9 @@ private:
 
 	enum { kMaxTextures = 8 };
 	rendering::Texture2D textures_[kMaxTextures];
+
+	rendering::Sampler pointSampler_;
+	rendering::Sampler fontSampler_;
 };
 
 } }

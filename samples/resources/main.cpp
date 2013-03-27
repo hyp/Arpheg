@@ -27,10 +27,8 @@ int main(){
 	rendering::Pipeline::Constant textureConst("texture");
 
 	//Data
-	data->loadBundle(ARPHEG_ROOT_PATH "data/core/core.txt","core");
-
-
-	data->loadBundle(ARPHEG_ROOT_PATH "data/sample.txt","data");
+	data->loadBundle(ARPHEG_ROOT_PATH "data/core/core.txt");
+	data->loadBundle(ARPHEG_ROOT_PATH "data/sample.txt");
 
 	ui::Image image(data->sprite("icon"));
 	ui::Widget imageWidget(vec2i(0,0),vec2i(64,64));
@@ -49,15 +47,15 @@ int main(){
 	This s(imageWidget);
 
 	ui::TextureView tview;
-	ui::Widget depthView(vec2i(128,128),vec2i(256,256));
-	depthView.addComponent(&tview);
+	ui::FillLayout tlayout;
+	ui::Widget depthView;depthView.addComponent(&tview);depthView.addComponent(&tlayout);
 	services::ui()->root()->addChild(&depthView);
+
 
 		
 	auto mesh    = data->mesh("head");
 	auto animation = data->animation("head.animation.0");
 	auto program = data->pipeline("default");
-	//auto texture = data->texture2D("crate");
 	auto font    = data->font("font");
 
 

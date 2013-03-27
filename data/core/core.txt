@@ -1,5 +1,20 @@
 id = 'core'
 
+sampler:
+	id = 'rendering.sampler.point'
+	filter: 'MinPoint', 'MagPoint'
+	addressMode = 'Clamp'
+	
+sampler:
+	id = 'rendering.sampler.linear'
+	filter: 'MinLinear', 'MagLinear'
+	addressMode = 'Clamp'
+	
+sampler:
+	id = 'rendering.sampler.mipLinear'
+	filter: 'MinLinear', 'MagLinear', 'MipLinear'
+	addressMode = 'Clamp'
+
 pipeline:
 	id = 'rendering.debug.pipeline'
 	glsl.vertexAttributes: 'position', 'colour'

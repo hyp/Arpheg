@@ -36,6 +36,9 @@ public:
 	inline Component** components();
 	inline uint32 componentCount();
 
+	void move(vec2i position,vec2i size);
+	void move(vec2i position);
+	void resize(vec2i size);
 	void draw(events::Draw& ev);
 	
 	void onMouseMove(events::Mouse& ev);
@@ -44,6 +47,7 @@ public:
 	void onKey(const events::Key& ev);
 	void onJoystick(const events::Joystick& ev);
 	void onTouch(events::Touch& ev);
+	void onLayout(events::Layout& ev);
 	
 	vec2i position_;
 	vec2i size_;

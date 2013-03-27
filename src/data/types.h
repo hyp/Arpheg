@@ -73,6 +73,34 @@ namespace data {
 	inline uint32 Sprite::frameCount() const { return frameCount_; }
 	inline Sprite::Frame* Sprite::frames() const { return frames_; }
 
+	//A light
+	struct Light {
+		enum Type {
+			Directional,
+			Point,
+			Spot,
+		};
+		enum { kConstantsVec4fCount = 5 };
+		enum { kConstantsSize = kConstantsVec4fCount*sizeof(vec4f) };
+
+		inline Type  type() const;
+		inline vec3f position() const;
+		inline vec3f diffuseColour() const;
+		inline vec3f specularColour() const;
+		inline vec3f ambientColour() const;
+
+		inline float pointLightRadius() const;
+	private:
+		uint32 type_;uint32 properties_;
+		vec4f parameterStorage_       [kConstantsVec4fCount];
+	};
+	inline Light::Type  Light::type() const { return Type(type_); }
+	inline vec3f Light::position() const { return parameterStorage_[0].xyz(); }
+	inline vec3f Light::diffuseColour() const { return parameterStorage_[1].xyz(); }
+	inline vec3f Light::specularColour() const { return parameterStorage_[2].xyz(); }
+	inline vec3f Light::ambientColour() const { return parameterStorage_[3].xyz(); }
+	inline float Light::pointLightRadius() const { return parameterStorage_[4].x; }
+
 #ifndef ARPHEG_DATA_NO3D
 	
 	//Material defines how a mesh is rendered

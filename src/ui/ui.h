@@ -35,6 +35,7 @@ public:
 	void enterLayer();
 private:
 	rendering::ui::Service* renderer_;
+	vec2i rootSize_;
 	Group* root_;
 	Widget* focused_;
 };

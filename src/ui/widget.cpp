@@ -92,6 +92,26 @@ void Widget::draw(events::Draw& ev) {
 		parts[i]->draw(this,ev);
 	ev.position = pos;
 }
+void Widget::move(vec2i position,vec2i size){
+	move(position);
+	resize(size);
+}
+void Widget::move(vec2i position){
+	position_ = position;
+}
+void Widget::resize(vec2i size){
+	if(size_.x == size.x && size_.y == size.y) return;
+	size_ = size;
+
+	auto parts = components();
+	for(uint32 i =0;i<componentCount_;++i)
+		parts[i]->onResize(this,size);
+}
+void Widget::onLayout(events::Layout& ev) {
+	auto parts = components();
+	for(uint32 i =0;i<componentCount_;++i)
+		parts[i]->onLayout(this,ev);
+}
 
 //Dispatch input events to components
 

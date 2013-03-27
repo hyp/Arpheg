@@ -18,7 +18,7 @@ namespace data {
 		rendering::Texture2D loadTexture(const char* name);
 		
 		//Bundle based data management
-		BundleID loadBundle(const char* filename,ID id);
+		BundleID loadBundle(const char* filename);
 		BundleID bundle(ID id,bool optional = false);
 		
 		//raw rendering resources without extra cruff

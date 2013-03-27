@@ -18,6 +18,7 @@ void Component::onMouseWheel(Widget* widget,const events::MouseWheel& ev) { }
 void Component::onKey(Widget* widget,const events::Key& ev) { }
 void Component::onJoystick(Widget* widget,const events::Joystick& ev) { }
 void Component::onTouch(Widget* widget,events::Touch& ev) {}
+void Component::onResize(Widget* widget,const vec2i& size) {}
 
 void Component::clicked(){ }
 void Component::selected() { }
@@ -33,6 +34,8 @@ vec2i Component::calculateSize(){
 }
 vec2i Component::calculateBorder(){
 	return vec2i(0,0);
+}
+void Component::onLayout(Widget* widget,events::Layout& layout) {
 }
 
 Group::Group() : childrenCount_(0),children_(nullptr) {}
@@ -59,6 +62,12 @@ UI_GROUP_DISPATCH_INPUT(onTouch,events::Touch)
 #undef UI_GROUP_DISPATCH_INPUT
 #undef UI_GROUP_DISPATCH_INPUT_CONST
 
+void Group::onResize(Widget* widget,const vec2i& size) { 
+	events::Layout layout;
+	layout.parent = widget;
+	layout.runningPosition = vec2i(0,0);
+	for(auto i = children_;i!=nullptr;i = i->next_) i->onLayout(layout);
+}
 vec2i Group::calculateSize() {
 	vec2i sz = vec2i(0,0);
 	return sz;
@@ -68,6 +77,10 @@ void Group::addChild(Widget* child) {
 	auto i = &children_;
 	for(;(*i)!=nullptr;i = &((*i)->next_));
 	*i = child;
+}
+
+void FillLayout::onLayout(Widget* widget,events::Layout& layout) {
+	widget->move(vec2i(0,0),layout.parent->size());
 }
 
 Renderable::Renderable() {

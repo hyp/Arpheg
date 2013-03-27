@@ -17,6 +17,8 @@ public:
 	virtual void onKey(Widget* widget,const events::Key& ev);
 	virtual void onJoystick(Widget* widget,const events::Joystick& ev);
 	virtual void onTouch(Widget* widget,events::Touch& ev);
+	virtual void onResize(Widget* widget,const vec2i& size);
+	virtual void onLayout(Widget* widget,events::Layout& layout);
 	
 	//Connectabled slots.
 	virtual void clicked();	
@@ -32,6 +34,13 @@ public:
 	virtual vec2i calculateBorder();
 protected:
 	uint32 flags_;
+};
+class Layout: public Component {
+public:
+};
+class FillLayout: public Layout {
+public:
+	void onLayout(Widget* widget,events::Layout& layout);
 };
 class Renderable: public Component {
 public:
@@ -58,6 +67,7 @@ public:
 	void onKey(Widget* widget,const events::Key& ev);
 	void onJoystick(Widget* widget,const events::Joystick& ev);
 	void onTouch(Widget* widget,events::Touch& ev);
+	void onResize(Widget* widget,const vec2i& size);
 	
 	vec2i calculateSize();
 

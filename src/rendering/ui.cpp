@@ -43,7 +43,9 @@ BatchImpl::BatchImpl(const Batch& batch) :
 	vertices(batch.verticesSize?batch.verticesSize: 2048,services::threadSafeFrameAllocator(),core::BufferAllocator::GrowOnOverflow),
 	indices(batch.indicesSize? batch.indicesSize:  1024,services::threadSafeFrameAllocator() ,core::BufferAllocator::GrowOnOverflow) 
 {
-	layerDepth = (batch.layer<<16) | batch.depth;
+	assert(batch.layer <= Batch::kMaxLayer);
+	assert(batch.depth <= Batch::kMaxDepth);
+	layerDepth = (batch.layer<<8) | batch.depth;
 	meshId = 0;
 	font = nullptr;
 	textureId = 0;
@@ -52,7 +54,8 @@ BatchImpl::BatchImpl(const BatchImpl& other,uint32 layer,uint32 texture) :
 	vertices(2048,services::threadSafeFrameAllocator(),core::BufferAllocator::GrowOnOverflow),
 	indices( 1024,services::threadSafeFrameAllocator() ,core::BufferAllocator::GrowOnOverflow)
 {
-	layerDepth = (layer << 16) | (other.layerDepth & 0xFFFF);
+	assert(layer <= Batch::kMaxLayer);
+	layerDepth = (layer << 8) | (other.layerDepth & Batch::kMaxDepth);
 	meshId = other.meshId;
 	font = other.font;
 	textureId = texture;
@@ -134,7 +137,7 @@ uint32 Service::registerFontBatch(const data::Font* font) {
 
 	Batch batch;
 	batch.name = "font";
-	batch.depth = 0xFFFF;//fonts are drawn after all eveything else on the current layer.
+	batch.depth = Batch::kMaxDepth;//fonts are drawn after all eveything else on the current layer.
 
 	auto id = registerBatch(batch,
 		font->renderingType() == text::fontType::Outlined? OutlinedTextPipeline : TextPipeline,
@@ -194,14 +197,27 @@ void Service::prepareRendering() {
 	loadCorePipeline(TexturedColouredPipeline,"rendering.2d.textured.coloured.pipeline");
 	loadCorePipeline(ColouredPipeline,"rendering.2d.coloured.pipeline");
 
+	pointSampler_ = services::data()->sampler(services::data()->bundle("core",true),"rendering.sampler.point",true);
+	fontSampler_ = pointSampler_;
+	
 	//Sort the batches.
-	//std::sort(begin<BatchImpl>(batches_),end<BatchImpl>(batches_));
+	auto batchCount = length<BatchImpl>(batches_);
+	uint32 storage[1024];
+	if(batchCount > (sizeof(storage)/sizeof(storage[0]))){
+		assert(false && "Can't sort the ui batches");
+		return;
+	}
+	for(size_t i = 0;i<batchCount;++i){
+		storage[i] = (uint32(i)<<16) | nth<BatchImpl>(batches_,i).layerDepth;
+	}
+	struct Pred{ inline bool operator ()(uint32 a,uint32 b) { return (a&0xFFFF) < (b&0xFFFF); } };
+	std::sort(storage,storage+batchCount,Pred());
+
+	//TODO sorted indexing.
 }
 
 // Immediate mode rendering of ui primitives
 void Service::render(const mat44f& matrix) {
-	prepareRendering();
-
 
 	auto renderer = services::rendering();
 	//Turn off blending
@@ -295,7 +311,10 @@ void Service::render(const mat44f& matrix) {
 	}
 
 	//Setup textures.
-	if(!(textures_[0] == Texture2D::null())) renderer->bind(textures_[0],0);
+	if(!(textures_[0] == Texture2D::null())){
+		renderer->bind(textures_[0],0);
+		renderer->bind(pointSampler_,0);
+	}
 
 	//Issue the rendering commands
 	uint32 currentBoundMesh = kMaxGeometries;
@@ -318,11 +337,13 @@ void Service::render(const mat44f& matrix) {
 			if(batch->font){
 				int fontTextureUnit = 2;
 				renderer->bind(batch->font->pages_[0],fontTextureUnit);
+				renderer->bind(fontSampler_,fontTextureUnit);
 				renderer->bind(pipelines_[batch->pipelineId].texturesConstant,&fontTextureUnit);
 			} else {
 				if(batch->textureId != 0){
 					int unit = 1;
 					renderer->bind(textures_[batch->textureId],unit);
+					renderer->bind(pointSampler_,unit);
 					renderer->bind(pipelines_[batch->pipelineId].texturesConstant,&unit);
 					textureUnitsBound[batch->pipelineId] = false;
 				} else if(!textureUnitsBound[batch->pipelineId]) {

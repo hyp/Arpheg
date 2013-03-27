@@ -26,6 +26,11 @@ typedef input::events::Key Key;
 typedef input::events::Joystick Joystick;
 typedef input::events::Touch Touch;
 
+struct Layout {
+	const Widget* parent;
+	vec2i runningPosition;
+};
+
 inline bool contained(vec2i point,vec2i size) { return point.x <= size.x && point.y <= size.y; }
 
 } }
