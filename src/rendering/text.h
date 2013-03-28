@@ -2,7 +2,6 @@
 
 #include "types.h"
 #include "../data/font/font.h"
-#include "geometryBatcher.h"
 
 namespace rendering {
 namespace text {

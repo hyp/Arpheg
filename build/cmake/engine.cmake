@@ -36,7 +36,6 @@ set(ARPHEG_ENGINE_FILES
 	rendering/debug.cpp
 	rendering/ui.cpp
 	rendering/2d.cpp
-	rendering/geometryBatcher.cpp
 	rendering/text.cpp
 	rendering/softwareOcclusion/softwareOcclusion.cpp
 	rendering/animation.cpp

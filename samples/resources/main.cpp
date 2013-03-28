@@ -5,7 +5,6 @@
 #include "../../src/services.h"
 #include "../../src/data/data.h"
 
-#include "../../src/rendering/geometryBatcher.h"
 #include "../../src/rendering/text.h"
 #include "../../src/rendering/debug.h"
 #include "../../src/ui/ui.h"
