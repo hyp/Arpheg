@@ -1,6 +1,7 @@
 #include "platform.h"
 #include "dynamicLibrary.h"
 #include "assert.h"
+#include "bufferStringStream.h"
 
 #ifdef ARPHEG_PLATFORM_POSIX
 #include <dlfcn.h>
@@ -11,8 +12,10 @@ namespace core {
 #ifdef ARPHEG_PLATFORM_WIN32
 
 DynamicLibrary::DynamicLibrary(const char* name){
-	handle = (void*)GetModuleHandleA(name);
+	//NB: extension is appended automatically (MSDN)
+	handle = (void*)LoadLibraryA(name);
 	if(!handle){
+		auto err = GetLastError();
 		assertRelease(false && "Failed to load library");
 	}
 }
@@ -29,7 +32,11 @@ void*  DynamicLibrary::get(const char* name,bool optional){
 #elif defined(ARPHEG_PLATFORM_POSIX) 
 
 DynamicLibrary::DynamicLibrary(const char* name){
-	handle = dlopen(name,RTLD_NOW);
+	using namespace bufferStringStream;
+	Formatter fmt;
+	printf(fmt.allocator,"%s.so",name);
+
+	handle = dlopen(asCString(fmt.allocator),RTLD_NOW);
 	if(!handle){
 		assertRelease(false && "Failed to load library");
 	}

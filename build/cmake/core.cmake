@@ -18,4 +18,5 @@ set(ARPHEG_CORE_FILES
 )
 foreach(i ${ARPHEG_CORE_FILES})
 	list(APPEND ARPHEG_FILES "../src/core/${i}")
+	list(APPEND ARPHEG_FILES_CORE "../src/core/${i}")
 endforeach(i)

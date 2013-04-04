@@ -7,6 +7,7 @@
 #include "../core/bufferArray.h"
 #include "../core/bufferStack.h"
 #include "../core/bufferStringStream.h"
+#include "../core/dynamicLibrary.h"
 #include "data.h"
 #include "image/reader.h"
 
@@ -233,9 +234,11 @@ inline internal_::Service* Service::impl() const {
 }
 Service::Service(core::Allocator* allocator){
 	pimpl = ALLOCATOR_NEW(allocator,internal_::Service);
+	implib = nullptr;
 }
 Service::~Service(){
 	impl()->~Service();
+	if(implib) implib->~DynamicLibrary();
 }
 
 Pipeline::Pipeline(rendering::Pipeline pipeline) :mvp("mvp"){
@@ -250,32 +253,6 @@ Sprite::Frame::Frame(float* texcoords) {
 	textureCoords[1] = normalizedUint16::make(texcoords[1]);
 	textureCoords[2] = normalizedUint16::make(texcoords[2]);
 	textureCoords[3] = normalizedUint16::make(texcoords[3]);
-}
-Material::Material(const rendering::Texture2D* textures,size_t textureCount,const void* constants,size_t constantsSize) {
-	assert(textureCount <= kMaxTextures);
-	data_ = uint32(textureCount);
-	for(size_t i =0;i< textureCount;++i) textures_[i] = textures[i];
-	if(constantsSize < kConstantsSize) memset(parameterStorage_,0,sizeof(parameterStorage_));
-	if(constantsSize) memcpy(parameterStorage_,constants,constantsSize);
-}
-SubMesh::SubMesh(const rendering::Mesh& mesh,uint32 offset,uint32 count,uint32 indexSize,rendering::topology::Primitive mode){
-	mesh_ = mesh;
-	data_ = count&kCountMask | ((indexSize&kIndexSizeMask)<<kIndexOffset) | ((uint32(mode)&kIndexSizeMask)<<kPrimOffset);
-	primitiveOffset_ = offset;
-}
-Mesh::Mesh(SubMesh* singleSubMesh) {
-	submeshCount_ = 1;
-	boneCount_ = 0;
-	submeshes_.oneSubmesh = singleSubMesh;
-	skeletonHierarchy_ = nullptr;
-	skeletonLocalTransforms_ = nullptr;
-}
-Mesh::Mesh(SubMesh** submeshes,size_t count) {
-	submeshCount_ = count;
-	boneCount_ = 0;
-	submeshes_.manySubMeshes = submeshes;
-	skeletonHierarchy_ = nullptr;
-	skeletonLocalTransforms_ = nullptr;
 }
 
 BundleID Service::loadBundle(const char* filename) {
@@ -352,6 +329,12 @@ rendering::Texture2D Service::loadTexture(const char* name){
 	Reader reader;
 	reader.load(name);
 	return reader.result;
+}
+
+core::DynamicLibrary* Service::importLibrary() {
+	if(implib) return implib;
+	implib = new(impl()->sharedLibsStorage) core::DynamicLibrary("arphegdataimport");
+	return implib;
 }
 
 }

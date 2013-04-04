@@ -118,7 +118,7 @@ namespace internal_ {
 		//A stack of unique rendering objects which are released when a bundle is released
 		ResourceStack<RenderResource> renderObjects;
 
-
+		void* sharedLibsStorage[4];
 
 		void releaseTopBundle();
 		void releaseBundles();

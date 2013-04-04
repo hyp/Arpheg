@@ -5,6 +5,7 @@
 #include "../../../core/io.h"
 #include "../../../core/allocatorNew.h"
 #include "../../../core/assert.h"
+#include "../../../core/dynamicLibrary.h"
 #include "../../../services.h"
 
 #include "../../internal/internal.h"
@@ -234,10 +235,14 @@ void Mesh::end(){
 			service->mapPointerToID(bundle,destAnimation,core::Bytes((void*)name,strlen(name)));
 		}
 	};
+	dataIntermediateMeshReaderLoadFunc func = (dataIntermediateMeshReaderLoadFunc)services::data()->importLibrary()->get("dataIntermediateMeshReaderLoad");
+
 	Reader reader;reader.parser = parser;reader.service = parser->service;reader.bundle = parser->bundle;reader.self = this;
 	auto p = parser->makePath(path);
 	parser->pushPath(path);
-	reader.load(core::memory::globalAllocator(),p);
+	data::intermediate::mesh::Reader::Options opt;
+	func(&reader,services::logging(),core::memory::globalAllocator(),p,&opt);
+	//reader.load(services::logging(),core::memory::globalAllocator(),p);
 	parser->popPath();
 }
 

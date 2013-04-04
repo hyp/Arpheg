@@ -1,14 +1,15 @@
 // This module implements an importer for mesh files using the ASSIMP library.
 
-#include <limits>
-#include "../../core/types.h"
+
 
 #if !defined(ARPHEG_RESOURCES_NO_FORMATTED) && !defined(ARPHEG_PLATFORM_MOBILE)
 
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <limits>
 
+#include "../../../core/types.h"
 #include "../../../core/assert.h"
 #include "../../../core/io.h"
 #include "../../../core/memory.h"
@@ -16,8 +17,7 @@
 #include "../../../core/allocatorNew.h"
 #include "../../../core/bufferArray.h"
 #include "../../../core/bufferStringStream.h"
-#include "../../../services.h"
-#include "../../data.h"
+
 #include "reader.h"
 
 // C++ importer interface
@@ -25,20 +25,23 @@
 #include "../../../dependencies/assimp/include/assimp/scene.h"
 #include "../../../dependencies/assimp/include/assimp/postprocess.h"
 
+
+#ifdef ARPHEG_BUILD_DATA_LIB
+extern "C" {
+
+ARPHEG_EXPORT void dataIntermediateMeshReaderLoad(void* reader,void* logger,void* allocator,const char* name,const void* options){
+	auto r = (data::intermediate::mesh::Reader*)reader;
+	auto a = (core::Allocator*)allocator;
+	auto opt = (const data::intermediate::mesh::Reader::Options*)options;
+	auto l = (application::logging::Service*)logger;
+	r->load(l,a,name,*opt);
+}
+
+}
+#endif
+
 namespace data {
 namespace intermediate {
-
-
-void Material::release(core::Allocator* allocator){
-	for(uint32 i = 0; i <kMaxTextures;++i){
-		if(textureFiles[i]) allocator->deallocate((void*)textureFiles[i]);
-	}
-}
-Mesh::Mesh() : vertices(nullptr,nullptr),indices(nullptr,nullptr),joints(nullptr) {
-	indexSize = 0;
-	materialIndex = 0;
-}
-
 namespace mesh {
 
 inline void move3(float* dest,const aiVector3D& v){
@@ -195,10 +198,10 @@ struct Scene {
 	
 	uint8 storageForImporter[MeshImporter::kMaxSizeof];
 	Material mat;
-
+	application::logging::Service* logging;
 	
 
-	Scene(core::Allocator* allocator);
+	Scene(application::logging::Service* logger,core::Allocator* allocator);
 	~Scene();
 	void importIntoOneMesh(const aiScene* scene);
 	void recursiveImport(aiNode* node,aiMatrix4x4 transform);
@@ -211,7 +214,8 @@ struct Scene {
 	const aiNode* findSkeletonNode(const aiString& name);
 	void importSkeletalAnimationTracks();
 };
-Scene::Scene(core::Allocator* allocator) : resultingMesh(nullptr) {
+Scene::Scene(application::logging::Service* logger,core::Allocator* allocator) : resultingMesh(nullptr) {
+	logging = logger;
 	importer = nullptr;
 	this->allocator = allocator;
 	scene = nullptr;
@@ -363,7 +367,7 @@ void Scene::importMaterial(const aiMaterial* material) {
 
 	reader->processMaterial(name.C_Str(),ctextures,currentTextures);
 
-	auto logger = services::logging();
+	auto logger = logging;
 	if(logger->priority() <= application::logging::Trace){
 		if(!named) named = "<unnamed>";
 		using namespace core::bufferStringStream;
@@ -392,7 +396,6 @@ void Scene::importMaterial(const aiMaterial* material) {
 	}
 }
 void Scene::selectVertexFormat(const aiMesh* mesh){
-	auto logging = services::logging();
 	if(!mesh->HasPositions()){
 		logging->resourceError("A mesh has no vertex position data. It will be ignored",mesh->mName.C_Str());
 		return;
@@ -421,7 +424,7 @@ void Scene::selectVertexFormat(const aiMesh* mesh){
 ::data::SubMesh::Joint* Scene::importMeshBones(const aiMesh* mesh){
 	if(!hasSkeleton()) return nullptr;
 	if(!mesh->HasBones()){
-		services::logging()->error("A scene contains a skeleton but a mesh has no bones!");
+		logging->error("A scene contains a skeleton but a mesh has no bones!");
 		return nullptr;
 	}
 
@@ -472,7 +475,7 @@ void Scene::selectVertexFormat(const aiMesh* mesh){
 			auto weight = bone->mWeights[j].mWeight;
 			assertRelease(weight>= 0.0f && weight <= 1.0f);
 			if(vertexWeightCount[vertexId] >= options.maxBonesPerVertex){
-				services::logging()->warning("A vertex has more bone weights than the limit allows");
+				logging->warning("A vertex has more bone weights than the limit allows");
 				continue;
 			}
 			auto boneId = skeletonBoneMapping[bone];
@@ -547,7 +550,7 @@ void Scene::importSkeletalAnimationTracks() {
 		//Find the track count
 		for(uint32 i = 0;i<animation->mNumChannels;++i){
 			if(!findSkeletonNode(animation->mChannels[i]->mNodeName)){
-				services::logging()->warning("An animation contains a track which doesn't influence any bone");
+				logging->warning("An animation contains a track which doesn't influence any bone");
 				continue;
 			}
 			destAnimation.trackCount++;
@@ -614,12 +617,8 @@ void Scene::importSkeletalAnimationTracks() {
 }
 
 
-void Reader::processSkeletalAnimation(const char* name,const animation::Animation& track){
-}
-void Reader::processMaterial(const char* name,const char** textures,size_t textureCount) {
-
-}
-void Reader::load(core::Allocator* allocator,const char* name,const Options& options){
+#ifdef ARPHEG_BUILD_DATA_LIB
+void Reader::load(application::logging::Service* logger,core::Allocator* allocator,const char* name,const Options& options){
 	Assimp::Importer importer;
 
 	importer.SetPropertyInteger(AI_CONFIG_PP_LBW_MAX_WEIGHTS,options.maxBonesPerVertex);
@@ -644,18 +643,19 @@ void Reader::load(core::Allocator* allocator,const char* name,const Options& opt
 
 	auto scene = importer.ReadFile(name,flags);
 	if(!scene){
-		services::logging()->resourceError(importer.GetErrorString(),name);
+		logger->resourceError(importer.GetErrorString(),name);
 		return;
 	}
 	auto root = scene->mRootNode;
 	if(!scene->HasMeshes()){
-		services::logging()->resourceError("No meshes present",name);
+		logger->resourceError("No meshes present",name);
 		return;
 	}
-	Scene doImport(allocator);doImport.reader = this;doImport.options = options;
+	Scene doImport(logger,allocator);doImport.reader = this;doImport.options = options;
 	doImport.importIntoOneMesh(scene);
 
 }
+#endif
 
 } } }
 

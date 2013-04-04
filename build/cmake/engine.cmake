@@ -12,8 +12,6 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/dependencies/" ${CMAKE_MODULE_P
 find_package(ZLIB REQUIRED)
 list(APPEND ARPHEG_LIBS ${ZLIB_LIBRARY})
 include_directories(${ZLIB_INCLUDE_DIR})
-find_package(ASSIMP REQUIRED)
-list(APPEND ARPHEG_LIBS ${ASSIMP_LIBRARY})
 find_package(LUA REQUIRED)
 list(APPEND ARPHEG_LIBS ${LUA_LIBRARY})
 
@@ -46,11 +44,11 @@ set(ARPHEG_ENGINE_FILES
 	rendering/animation.cpp
 
 	data/data.cpp
+	data/3d.cpp
 	data/image/reader.cpp
 	data/text/parser.cpp
 	data/shader/preprocess.cpp
 	data/font/font.cpp
-	data/intermediate/mesh/reader.cpp
 	data/intermediate/bundle/parser.cpp
 	data/intermediate/font/reader.cpp
 	data/utils/path.cpp

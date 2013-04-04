@@ -1,32 +1,30 @@
 #pragma once
 
-#include "../../core/memoryTypes.h"
-#include "../../core/math.h"
-#include "../../core/bytes.h"
+#include "../../../core/memoryTypes.h"
+#include "../../../core/math.h"
+#include "../../../core/bytes.h"
+#ifdef ARPHEG_BUILD_DATA_LIB
+#include "../../../core/dynamicLibraryExport.h"
+#endif
 #include "../../types.h"
+#include "../../../application/logging.h"
 
 namespace data {
 namespace intermediate {
 
-	struct Mesh {
-		uint32 indexSize;
-		core::Bytes vertices,indices;
-		::data::SubMesh::Joint* joints;
-		uint32 materialIndex;
+struct Mesh {
+	uint32 indexSize;
+	core::Bytes vertices,indices;
+	::data::SubMesh::Joint* joints;
+	uint32 materialIndex;
 
-		Mesh();
-	};
+	inline Mesh();
+};
 
-
-	struct Material {
-		vec3f diffuse,specular,emmisive,ambient;
-		float shininess;
-
-		enum { kTextureDiffuse,kTextureNormal,kTextureSpecular,kMaxTextures = 16 };
-		const char* textureFiles[kMaxTextures];
-
-		void release(core::Allocator* allocator);
-	};
+inline Mesh::Mesh() : vertices(nullptr,nullptr),indices(nullptr,nullptr),joints(nullptr) {
+	indexSize = 0;
+	materialIndex = 0;
+}
 
 namespace mesh {
 	class Reader {
@@ -50,10 +48,23 @@ namespace mesh {
 			inline Options() : optimize(false),leftHanded(false),maxBonesPerVertex(4) {}
 		};
 
-		void load(core::Allocator* allocator,const char* name,const Options& options = Options());
-		
+#ifdef ARPHEG_BUILD_DATA_LIB
+		void load(application::logging::Service* logger,core::Allocator* allocator,const char* name,const Options& options = Options());
+#endif		
+
 		virtual void processMesh(const Mesh* submeshes,const ::data::Mesh& mesh,uint32 vertexFormat) = 0;
-		virtual void processMaterial(const char* name,const char** textures,size_t textureCount);
-		virtual void processSkeletalAnimation(const char* name,const animation::Animation& animation);
+		virtual void processMaterial(const char* name,const char** textures,size_t textureCount) = 0;
+		virtual void processSkeletalAnimation(const char* name,const animation::Animation& animation) = 0;
 	};
+
 } } }
+
+#ifdef ARPHEG_BUILD_DATA_LIB
+extern "C" {
+	ARPHEG_EXPORT void dataIntermediateMeshReaderLoad(void* reader,void* logger,void* allocator,const char* name,const void* options);
+}
+#else
+extern "C" {
+	typedef void* (*dataIntermediateMeshReaderLoadFunc)(void*,void*,void*,const char*,const void*);
+}
+#endif

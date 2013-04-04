@@ -3,6 +3,10 @@
 #include "types.h"
 #include "../core/memory.h"
 
+namespace core {
+	class DynamicLibrary;
+}
+
 namespace data {
 
 	namespace internal_ {
@@ -46,8 +50,10 @@ namespace data {
 		Sprite* sprite(BundleID bundle,ID id,bool optional = false);
 
 		inline internal_::Service* impl() const;
+		core::DynamicLibrary* importLibrary();
 	private:
-		internal_::Service* pimpl;
+		internal_::Service*   pimpl;
+		core::DynamicLibrary* implib;
 	};
 
 }
