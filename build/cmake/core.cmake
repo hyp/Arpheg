@@ -10,6 +10,7 @@ set(ARPHEG_CORE_FILES
 	charSource.cpp
 	utf.cpp
 	bufferStringStream.cpp
+	dynamicLibrary.cpp
 	thread/thread.cpp
 	
 	random/mersenneTwister.cpp

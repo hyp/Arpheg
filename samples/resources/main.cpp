@@ -17,11 +17,16 @@
 #include "../../src/scene/types.h"
 #include "../../src/scene/rendering.h"
 
+
 #include "../../src/rendering/opengl/gl.h"
+
 int main(){
+
 	services::init();
 	services::logging()->priority(application::logging::Trace);
 	services::application()->mainWindow()->create("Arpheg resources example");
+
+
 
 	auto renderer = services::rendering();
 	auto data     = services::data();

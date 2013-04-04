@@ -6,9 +6,11 @@
 		#define ARPHEG_PLATFORM_WIN32 1
 	#elif defined(__APPLE__) || defined(MACOSX)
 		#define ARPHEG_PLATFORM_OSX 1
+		#define ARPHEG_PLATFORM_POSIX 1
 		#define ARPHEG_PLATFORM_X11 1
 	#else
 		#define ARPHEG_PLATFORM_LINUX 1
+		#define ARPHEG_PLATFORM_POSIX 1
 		#define ARPHEG_PLATFORM_X11 1
 	#endif
 #else
