@@ -149,6 +149,17 @@ void Animator::animate(const data::Mesh* mesh,const data::animation::Animation* 
 		else transformations[i] = transformations[parentIds[i]] * transformations[i];
 	}
 }
+void Animator::setDefaultSkeleton(const data::Mesh* mesh,Transformation3D* transformations) {
+	size_t nodeCount = mesh->skeletonNodeCount();
+	if(!nodeCount) return; 
+	assert(nodeCount < kMaxNodes);
+	auto parentIds = mesh->skeletonHierarchy();
+	auto defaults  = mesh->skeletonDefaultLocalTransformations();
+	transformations[0] = defaults[0];
+	for(size_t i = 1;i<nodeCount;++i){
+		transformations[i] = transformations[parentIds[i]] * defaults[i];
+	}
+}
 void Animator::bindSkeleton(const data::SubMesh* submesh,size_t nodeCount,const Transformation3D* skeletonTransformations,JointTransformation3D* jointTransformations) {
 	auto bindPoses = submesh->skeletonJoints();
 	for(size_t i = 1;i<nodeCount;++i){

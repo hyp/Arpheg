@@ -23,9 +23,38 @@ namespace rendering {
 		};
 	}
 
+
 	struct Viewport {
 		vec2i position, size;
 	};
+	
+
+	struct Camera {
+		mat44f projection;
+		mat44f view;
+		mat44f projectionView;
+
+		inline Camera() { }
+		Camera(const mat44f& projectionMatrix,const mat44f& viewMatrix);
+		inline mat44f calculateMvp(const mat44f& model) const;
+	};
+	mat44f Camera::calculateMvp(const mat44f& model) const {
+		return projectionView * model;
+	}
+
+	//A light stored in the hardware ready format.
+	struct Light {
+		enum { kConstantsVec4fCount = 4 };
+		enum { kConstantsSize = kConstantsVec4fCount*sizeof(vec4f) };
+
+		vec4f parameterStorage_[kConstantsVec4fCount];
+		
+		void makeDirectional(vec3f direction,vec3f diffuse,vec3f specular,vec3f ambient);
+		void makePoint      (vec3f position,vec3f diffuse,vec3f specular,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation);
+		//TODO void makeSpotLight  ();
+		
+	};
+
 	namespace topology {
 		enum Primitive {
 			Point,

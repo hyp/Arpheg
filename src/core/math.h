@@ -71,7 +71,12 @@ struct vec3f {
 };
 
 STRUCT_PREALIGN(16) struct vec4f {
-	float x,y,z,w;
+	union {
+		struct {
+			float x,y,z,w;
+		};
+		__m128 xyzw;
+	};
 
 	inline vec4f() {}
 	explicit inline vec4f(float xx);
@@ -82,7 +87,9 @@ STRUCT_PREALIGN(16) struct vec4f {
 	explicit inline vec4f(__m128 value);
 	inline void operator = (__m128 value);
 	inline __m128 m128() const;
+	static inline __m128 fma(__m128 a,__m128 b,__m128 c);
 #endif
+	static inline vec4f fma(const vec4f& a,const vec4f& b,const vec4f& c);
 	
 	inline vec4f operator + (const vec4f& v) const;
 	inline vec4f operator - (const vec4f& v) const;
@@ -149,20 +156,42 @@ STRUCT_PREALIGN(16) struct Quaternion {
 } STRUCT_POSTALIGN(16);
 #include "math/quaternion.h"
 
-//The matrices are stored in Column-major(OpenGL order).
-STRUCT_PREALIGN(16) struct mat34f {
-	vec4f a,b,c; //columns
 
-	inline mat34f() { }
-	inline mat34f(const vec4f& aa,const vec4f& bb,const vec4f& cc) : a(aa),b(bb),c(cc) { }	
+//The 4x3 matrix is stored in row major order
+STRUCT_PREALIGN(16) struct mat34fRowMajor {
+	vec4f a,b,c; //rows
+
+	inline mat34fRowMajor() { }
+	inline mat34fRowMajor(const vec4f& aa,const vec4f& bb,const vec4f& cc) : a(aa),b(bb),c(cc) { }	
+	
+	inline  mat34fRowMajor operator *(const  mat34fRowMajor& other) const;
+	inline void operator *= (const  mat34fRowMajor& other);
+
+	static void multiply(const  mat34fRowMajor& m1,const  mat34fRowMajor& m2, mat34fRowMajor& result);
+	static void multiply( mat34fRowMajor& m1,const  mat34fRowMajor& m2);
+	static mat34fRowMajor identity();
+	static mat34fRowMajor translate(vec3f x);
+	static mat34fRowMajor scale(vec3f x);
+	static mat34fRowMajor rotate(const Quaternion& rotation);
+	static mat34fRowMajor translateRotateScale(const vec3f& translation,const Quaternion& rotation,const vec3f& scaling);
 } STRUCT_POSTALIGN(16) ;
 
+inline mat34fRowMajor mat34fRowMajor::operator *  (const mat34fRowMajor& other) const { 
+	mat34fRowMajor result;
+	multiply(*this,other,result);
+	return result;
+}
+inline void   mat34fRowMajor::operator *= (const mat34fRowMajor& other) {
+	multiply(*this,other);
+}
+
+//The 4x4 matrix is stored in Column-major(OpenGL order).
 STRUCT_PREALIGN(16) struct mat44f {
 	vec4f a,b,c,d; //columns
 
 	inline mat44f() { }
 	inline mat44f(const vec4f& aa,const vec4f& bb,const vec4f& cc,const vec4f& dd) : a(aa),b(bb),c(cc),d(dd) { }	
-	explicit inline mat44f(const mat34f& mat);
+	explicit inline mat44f(const mat34fRowMajor& mat);
 
 	inline mat44f operator + (const mat44f& other) const;
 	inline mat44f operator * (float k) const; 
@@ -170,6 +199,7 @@ STRUCT_PREALIGN(16) struct mat44f {
 	inline void operator *= (const mat44f& other);
 	
 	inline void transposeSelf();
+	mat44f inverse() const;
 
 	static void multiply(const mat44f& m1,const mat44f& m2,mat44f& result);
 	static void multiply(mat44f& m1,const mat44f& m2);
@@ -191,7 +221,9 @@ STRUCT_PREALIGN(16) struct mat44f {
 
 } STRUCT_POSTALIGN(16) ;
 
-inline  mat44f::mat44f(const mat34f& mat) : a(mat.a),b(mat.b),c(mat.c),d(0.f,0.f,0.f,1.f) {
+inline  mat44f::mat44f(const mat34fRowMajor& m1) {
+	a = m1.a; b = m1.b; c = m1.c; d = vec4f(0.f,0.f,0.f,1.f);
+	transposeSelf();
 }
 inline mat44f mat44f::operator * (const mat44f& other) const {
 	mat44f result;
@@ -209,10 +241,10 @@ inline mat44f mat44f::operator * (float k) const {
 }
 inline void mat44f::transposeSelf() {
 #ifdef ARPHEG_ARCH_X86
-	__m128 v0 = _mm_load_ps(&a.x);
-	__m128 v1 = _mm_load_ps(&b.x);
-	__m128 v2 = _mm_load_ps(&c.x);
-	__m128 v3 = _mm_load_ps(&d.x);
+	__m128 v0 = a.xyzw;
+	__m128 v1 = b.xyzw;
+	__m128 v2 = c.xyzw;
+	__m128 v3 = d.xyzw;
 	_MM_TRANSPOSE4_PS(v0, v1, v2, v3);
 	a = vec4f(v0);b = vec4f(v1);c = vec4f(v2);d = vec4f(v3);
 #else
@@ -228,26 +260,13 @@ inline vec3f mat44f::translationComponent() const {
 
 inline vec4f operator * (const mat44f& m,const vec4f& v);
 inline vec4f operator * (const mat44f& m,const vec4f& v) {
-#ifdef PLATFORM_MATH_MAT_ROWMAJOR
-	vec4f res;
-	res.x = m.a.x * v.x + m.a.y * v.y + m.a.z * v.z + m.a.w * v.w;
-	res.y = m.b.x * v.x + m.b.y * v.y + m.b.z * v.z + m.b.w * v.w;
-	res.z = m.c.x * v.x + m.c.y * v.y + m.c.z * v.z + m.c.w * v.w;
-	res.w = m.d.x * v.x + m.d.y * v.y + m.d.z * v.z + m.d.z * v.w;
-	return res;
-#else
 #ifdef ARPHEG_ARCH_X86
-	__m128 vx = _mm_set_ps1(v.x);
-	vx = _mm_mul_ps(*(__m128*)(&m.a.x),vx);
-	__m128 vy = _mm_set_ps1(v.y);
-	vy = _mm_mul_ps(*(__m128*)(&m.b.x),vy);
-	vx = _mm_add_ps(vx,vy);
-	__m128 vz = _mm_set_ps1(v.z);
-	vz = _mm_mul_ps(*(__m128*)(&m.c.x),vz);
-	vx = _mm_add_ps(vx,vz);
-	__m128 vw = _mm_set_ps1(v.w);
-	vw = _mm_mul_ps(*(__m128*)(&m.d.x),vw);
-	return vec4f(_mm_add_ps(vx,vw));
+	auto vv = v.m128();
+	__m128 r = _mm_mul_ps(m.a.m128(),_mm_shuffle_ps(vv,vv,_MM_SHUFFLE(0,0,0,0)));
+	r = vec4f::fma(m.b.m128(),_mm_shuffle_ps(vv,vv,_MM_SHUFFLE(1,1,1,1)),r);
+	r = vec4f::fma(m.c.m128(),_mm_shuffle_ps(vv,vv,_MM_SHUFFLE(2,2,2,2)),r);
+	r = vec4f::fma(m.d.m128(),_mm_shuffle_ps(vv,vv,_MM_SHUFFLE(3,3,3,3)),r);
+	return vec4f(r);
 #else
 	vec4f res;
 	res.x = m.a.x * v.x + m.b.x * v.y + m.c.x * v.z + m.d.x * v.w;
@@ -255,7 +274,6 @@ inline vec4f operator * (const mat44f& m,const vec4f& v) {
 	res.z = m.a.z * v.x + m.b.z * v.y + m.c.z * v.z + m.d.z * v.w;
 	res.w = m.a.w * v.x + m.b.w * v.y + m.c.w * v.z + m.d.w * v.w;
 	return res;
-#endif
 #endif
 }
 
@@ -294,7 +312,41 @@ STRUCT_PREALIGN(16) struct vec4i {
 namespace math {
 	inline float distance(vec2f a,vec2f b) { return sqrtf((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y)); }
 	inline float distanceSquared(vec2f a,vec2f b) { return (a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y); }
-}
+
+namespace utils {
+	inline void gatherBoxVertices(vec4f vertices[8],vec3f min,vec3f max){
+	#ifdef ARPHEG_ARCH_X86
+		auto vvertices = (float*)vertices;
+		__m128 vmin = _mm_setr_ps(min.x,min.y,min.z,1.0f);
+		__m128 vmax = _mm_setr_ps(max.x,max.y,max.z,1.0f);
+		__m128 r;
+		_mm_store_ps(vvertices,vmin); //min
+		r = _mm_move_ss(vmin,vmax); 
+		_mm_store_ps(vvertices+4,r);//max.x,min.y,min.z
+		r = _mm_shuffle_ps(vmax,vmin,_MM_SHUFFLE(3,2,1,0)); 
+		_mm_store_ps(vvertices+8,r);//max.x,max.y,min.z,1
+		r = _mm_move_ss(r,vmin); 
+		_mm_store_ps(vvertices+12,r);//min.x,max.y,min.z
+
+		r = _mm_shuffle_ps(vmin,vmax,_MM_SHUFFLE(3,2,1,0)); 
+		_mm_store_ps(vvertices+16,r);//min.x,min.y,max.z
+		r = _mm_move_ss(r,vmax);
+		_mm_store_ps(vvertices+20,r); //max.x,min.y,max.z
+		_mm_store_ps(vvertices+24,vmax);//max
+		r = _mm_move_ss(vmax,vmin); 
+		_mm_store_ps(vvertices+28,r); //min.x,max.y,max.z
+	#else
+		vertices[0] = vec4f(min.x,min.y,min.z,1);
+		vertices[1] = vec4f(max.x,min.y,min.z,1);
+		vertices[2] = vec4f(max.x,max.y,min.z,1);
+		vertices[3] = vec4f(min.x,max.y,min.z,1);
+		vertices[4] = vec4f(min.x,min.y,max.z,1);
+		vertices[5] = vec4f(max.x,min.y,max.z,1);
+		vertices[6] = vec4f(max.x,max.y,max.z,1);
+		vertices[7] = vec4f(min.x,max.y,max.z,1);
+	#endif
+	}
+} }
 
 struct AABB {
 	vec2f min, max;

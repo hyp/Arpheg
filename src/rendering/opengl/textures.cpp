@@ -134,10 +134,10 @@ namespace rendering {
 		using namespace texture;
 		GLint result;
 		switch(format){
-		case R_8:    result = GL_RED; internalFormat = GL_RED; type = GL_UNSIGNED_BYTE; break;
-		case RG_88:   result = GL_RG; internalFormat = GL_RG;type = GL_UNSIGNED_BYTE; break;
-		case RGB_888: result = GL_RGB;internalFormat = GL_RGB; type = GL_UNSIGNED_BYTE; break;
-		case RGBA_8888: result = GL_RGBA; internalFormat = GL_RGBA; type = GL_UNSIGNED_BYTE; break;
+		case R_8:    result = GL_RED; internalFormat = GL_R8; type = GL_UNSIGNED_BYTE; break;
+		case RG_88:   result = GL_RG; internalFormat = GL_RG8;type = GL_UNSIGNED_BYTE; break;
+		case RGB_888: result = GL_RGB;internalFormat = GL_RGB8; type = GL_UNSIGNED_BYTE; break;
+		case RGBA_8888: result = GL_RGBA; internalFormat = GL_RGBA8; type = GL_UNSIGNED_BYTE; break;
 		case UINT_RG_1616: result = GL_RG; internalFormat = GL_RG16UI; type = GL_UNSIGNED_SHORT; break;
 		case UINT_RGB_161616:result = GL_RGB; internalFormat = GL_RGB16UI; type = GL_UNSIGNED_SHORT; break;
 		case UINT_RGBA_16161616:result = GL_RGBA; internalFormat = GL_RGBA16UI;  type = GL_UNSIGNED_SHORT;break;

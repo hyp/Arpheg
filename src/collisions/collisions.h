@@ -1,6 +1,5 @@
 #pragma once
 #include "../core/math.h"
-#include "../core/simd.h"
 
 namespace collisions {
 
@@ -15,28 +14,6 @@ namespace collisions {
 		Frustum(const mat44f& viewProjection);
 	};
 	bool  overlaps(const Frustum& frustum,const AABox3D& b);
-
-namespace simd {
-
-	struct Points3D {
-		::simd::float4 position[3];
-	};
-	struct Spheres3D {
-		::simd::float4 position[3];
-		::simd::float4 radius;
-	};
-	struct AABoxes3D {
-		::simd::float4 min[3];
-		::simd::float4 max[3];
-	};
-	struct AACenteredBoxes3D {
-		::simd::float4 center[3];
-		::simd::float4 extent[3];
-	};
-
-	bool overlaps(const AABoxes3D& a,const AABoxes3D& b);
-}
-
 
 
 	bool  overlaps(const AABox3D& a,const AABox3D& b);

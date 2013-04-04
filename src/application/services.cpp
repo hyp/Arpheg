@@ -5,6 +5,7 @@
 #include "../rendering/debug.h"
 #include "../rendering/animation.h"
 #include "../ui/ui.h"
+#include "../scene/rendering.h"
 
 application::Service*  services::app_ = nullptr;
 application::timing::Service* services::timing_ = nullptr;
@@ -14,6 +15,7 @@ rendering::Service*    services::rendering_ = nullptr;
 rendering::debug::Service* services::debugRendering_ = nullptr;
 rendering::animation::Service* services::animation_ = nullptr;
 data::Service* services::data_ = nullptr;
+scene::rendering::Service* services::sceneRendering_ = nullptr;
 ui::Service* services::ui_ = nullptr;
 application::logging::Service* services::logging_ = nullptr;
 
@@ -34,6 +36,7 @@ static void initRenderingServices(core::Allocator* allocator){
 	services::rendering_ = ALLOCATOR_NEW(allocator,rendering::Service);
 	services::debugRendering_ = ALLOCATOR_NEW(allocator,rendering::debug::Service) (allocator);
 	services::animation_ = ALLOCATOR_NEW(allocator,rendering::animation::Service) (allocator);
+	services::sceneRendering_ = ALLOCATOR_NEW(allocator,scene::rendering::Service) (allocator);
 	services::ui_ = ALLOCATOR_NEW(allocator,ui::Service) (allocator);
 }
 
@@ -70,6 +73,7 @@ void services::preStep() {
 	rendering_->servicePreStep();
 	debugRendering_->servicePreStep();
 	animation()->servicePreStep();
+	sceneRendering()->servicePreStep();
 	ui_->servicePreStep();
 }
 void services::postStep() {
@@ -80,6 +84,7 @@ void services::postStep() {
 	input()->servicePostStep();
 }
 void services::shutdown() {
+	sceneRendering()->~Service();
 	ui_->~Service();
 	animation_->~Service();
 	debugRendering_->~Service();

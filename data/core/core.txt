@@ -14,42 +14,47 @@ sampler:
 	id = 'rendering.sampler.mipLinear'
 	filter: 'MinLinear', 'MagLinear', 'MipLinear'
 	addressMode = 'Clamp'
+	
+sampler:
+	id = 'rendering.sampler.repeatLinear'
+	filter: 'MinLinear', 'MagLinear'
+	addressMode = 'Repeat'
 
 pipeline:
 	id = 'rendering.debug.pipeline'
 	glsl.vertexAttributes: 'position', 'colour'
 	vertexShader:
-		in vec3 position; in vec4 colour;
-		uniform mat4 mvp;
-		out vec4 vsColour;
+		ATTRIBUTE_IN vec3 position; ATTRIBUTE_IN vec4 colour;
+		uniform highp mat4 mvp;
+		VARYING_OUT lowp vec4 vsColour;
 		void main() {
 			gl_Position = mvp*vec4(position,1); vsColour = colour;
 		}
 	pixelShader:
-		in  vec4 vsColour;
-		out vec4 fragment;
-		void main() { fragment = vsColour; }
+		VARYING_IN lowp vec4 vsColour;
+		DEF_PIXEL_SHADER_OUT;
+		void main() { PIXEL_SHADER_OUT = vsColour; }
 		
 
 pipeline:
 	id = 'rendering.visualize.depthBuffer.pipeline'
 	glsl.vertexAttributes: 'position','texcoord','colour'
 	vertexShader:
-		in vec2 position; in vec2 texcoord; in vec4 colour;
-		out vec2 vsTexcoord;out vec4 vsColour;
-		uniform mat4 matrix;
+		ATTRIBUTE_IN vec2 position; ATTRIBUTE_IN vec2 texcoord; ATTRIBUTE_IN vec4 colour;
+		VARYING_OUT mediump vec2 vsTexcoord;VARYING_OUT lowp vec4 vsColour;
+		uniform highp mat4 matrix;
 		void main() { 
 			gl_Position = matrix*vec4(position,0,1);
 			vsTexcoord = vec2(texcoord.x,1.0-texcoord.y); vsColour = colour;
 		}
 	pixelShader:
-		in vec2 vsTexcoord; in vec4 vsColour;
-		out vec4 fragment;
+		VARYING_IN mediump vec2 vsTexcoord; VARYING_IN lowp vec4 vsColour;
+		DEF_PIXEL_SHADER_OUT;
 		uniform sampler2D textures;
 		void main() {
-			float z = texture2D(textures,vsTexcoord).r;
-			float v = (z+1.0f)*0.5;
-			fragment = vec4(v,v,v,z<1.0? 1.0 : 0.0)* vsColour;
+			mediump float z = texture2D(textures,vsTexcoord).r;
+			mediump float v = (z+1.0f)*0.5;
+			PIXEL_SHADER_OUT = vec4(v,v,v,z<1.0? 1.0 : 0.0)* vsColour;
 		}
 	
 
@@ -57,19 +62,19 @@ pipeline:
 	id = 'rendering.2d.textured.coloured.pipeline'
 	glsl.vertexAttributes: 'position','texcoord','colour'
 	vertexShader:
-		in vec2 position; in vec2 texcoord; in vec4 colour;
-		out vec2 vsTexcoord;out vec4 vsColour;
-		uniform mat4 matrix;
+		ATTRIBUTE_IN vec2 position; ATTRIBUTE_IN vec2 texcoord; ATTRIBUTE_IN vec4 colour;
+		VARYING_OUT mediump vec2 vsTexcoord;VARYING_OUT lowp vec4 vsColour;
+		uniform highp mat4 matrix;
 		void main() { 
 			gl_Position = matrix*vec4(position,0,1);
 			vsTexcoord = texcoord; vsColour = colour;
 		}
 	pixelShader:
-		in vec2  vsTexcoord; in vec4 vsColour;
-		out vec4 fragment;
+		VARYING_IN mediump vec2  vsTexcoord; VARYING_IN lowp vec4 vsColour;
+		DEF_PIXEL_SHADER_OUT;
 		uniform sampler2D textures;
 		void main() {
-			fragment = texture2D(textures,vsTexcoord) * vsColour;
+			PIXEL_SHADER_OUT = texture2D(textures,vsTexcoord) * vsColour;
 		}
 	
 
@@ -77,18 +82,18 @@ pipeline:
 	id = 'rendering.2d.coloured.pipeline'
 	glsl.vertexAttributes: 'position','colour'
 	vertexShader:
-		in vec2 position; in vec2 texcoord; in vec4 colour;
-		out vec4 vsColour;
-		uniform mat4 matrix;
+		ATTRIBUTE_IN vec2 position; ATTRIBUTE_IN vec2 texcoord; ATTRIBUTE_IN vec4 colour;
+		VARYING_OUT lowp vec4 vsColour;
+		uniform highp mat4 matrix;
 		void main() {
 			gl_Position = matrix*vec4(position,0,1);
 			vsColour = colour;
 		}
 	pixelShader:
-		in vec4  vsColour;
-		out vec4 fragment;
+		VARYING_IN lowp vec4  vsColour;
+		DEF_PIXEL_SHADER_OUT;
 		void main() {
-			fragment = vsColour;
+			PIXEL_SHADER_OUT = vsColour;
 		}
 	
 
@@ -96,20 +101,20 @@ pipeline:
 	id = 'rendering.text.pipeline'
 	glsl.vertexAttributes: 'position','texcoord','channelMask','colour'
 	vertexShader:
-		in vec2 position;in vec2 texcoord;in vec4 channelMask; in vec4 colour;
-		out vec2 vsTexcoord;out vec4 vsChannelMask;out vec4 vsColour;
-		uniform mat4 matrix;
+		ATTRIBUTE_IN vec2 position;ATTRIBUTE_IN vec2 texcoord;ATTRIBUTE_IN vec4 channelMask; ATTRIBUTE_IN vec4 colour;
+		VARYING_OUT mediump vec2 vsTexcoord;VARYING_OUT lowp vec4 vsChannelMask;VARYING_OUT lowp vec4 vsColour;
+		uniform highp mat4 matrix;
 		void main(){
 			gl_Position = matrix*vec4(position,0,1);
 			vsTexcoord = texcoord;vsChannelMask = channelMask;vsColour = colour;
 		}
 	pixelShader:
-		in vec2 vsTexcoord;in vec4 vsChannelMask;in vec4 vsColour;
+		VARYING_IN mediump vec2 vsTexcoord;VARYING_IN lowp vec4 vsChannelMask;VARYING_IN lowp vec4 vsColour;
 		uniform sampler2D textures;
-		out vec4 fragment;
+		DEF_PIXEL_SHADER_OUT;
 		void main(){
-			float value = dot(texture2D(textures,vsTexcoord),vsChannelMask);
-			fragment = vec4(vsColour.xyz,vsColour.w*value);
+			lowp float value = dot(texture2D(textures,vsTexcoord),vsChannelMask);
+			PIXEL_SHADER_OUT = vec4(vsColour.xyz,vsColour.w*value);
 		}
 	
 	
@@ -117,23 +122,25 @@ pipeline:
 	id = 'rendering.text.outlined.pipeline'
 	glsl.vertexAttributes: 'position','texcoord','channelMask','colour','outlineColour'
 	vertexShader:
-		in vec2 position;in vec2 texcoord;in vec4 channelMask; in vec4 colour; in vec4 outlineColour;
-		out vec2 vsTexcoord;out vec4 vsChannelMask;out vec4 vsBorderColour; out vec4 vsColour;
+		ATTRIBUTE_IN vec2 position;ATTRIBUTE_IN vec2 texcoord;ATTRIBUTE_IN vec4 channelMask; ATTRIBUTE_IN vec4 colour; ATTRIBUTE_IN vec4 outlineColour;
+		VARYING_OUT mediump vec2 vsTexcoord;VARYING_OUT lowp vec4 vsChannelMask;
+		VARYING_OUT lowp vec4 vsBorderColour; VARYING_OUT lowp vec4 vsColour;
 		uniform mat4 matrix;
 		void main(){
 			gl_Position = matrix*vec4(position,0,1);
 			vsTexcoord = texcoord;vsChannelMask = channelMask;vsBorderColour = outlineColour; vsColour = colour;
 		}
 	pixelShader:
-		in vec2 vsTexcoord;in vec4 vsChannelMask;in vec4 vsBorderColour;in vec4 vsColour;
+		VARYING_IN mediump vec2 vsTexcoord;VARYING_IN lowp vec4 vsChannelMask;
+		VARYING_IN lowp vec4 vsBorderColour;VARYING_IN lowp vec4 vsColour;
 		uniform sampler2D textures;
-		out vec4 fragment;
+		DEF_PIXEL_SHADER_OUT;
 		void main(){
-			float value = dot(texture2D(textures,vsTexcoord),vsChannelMask);
+			lowp value = dot(texture2D(textures,vsTexcoord),vsChannelMask);
 			if(value > 0.69){
-				 float k = (2.0*value - 1.0);
-				 fragment = vec4(vsColour.xyz*k + vsBorderColour.xyz*(1.0-k),vsColour.a);
+				 lowp float k = (2.0*value - 1.0);
+				 PIXEL_SHADER_OUT = vec4(vsColour.xyz*k + vsBorderColour.xyz*(1.0-k),vsColour.a);
 			}
-			else fragment = vec4(vsBorderColour.xyz,value*vsBorderColour.a);
+			else PIXEL_SHADER_OUT = vec4(vsBorderColour.xyz,value*vsBorderColour.a);
 		}
 	

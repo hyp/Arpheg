@@ -238,8 +238,8 @@ Service::~Service(){
 	impl()->~Service();
 }
 
-Pipeline::Pipeline(rendering::Pipeline pipeline) {
-	pipeline_ = pipeline;
+Pipeline::Pipeline(rendering::Pipeline pipeline) :mvp("mvp"){
+	pipeline_ = pipeline; 
 }
 Sprite::Sprite(vec2i size) {
 	assert(size.x <= std::numeric_limits<uint16>::max() && size.y <= std::numeric_limits<uint16>::max());

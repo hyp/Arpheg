@@ -66,6 +66,7 @@ public:
 	
 	//Mesh animation
 	static void animate     (const data::Mesh* mesh,const data::animation::Animation* animation,float& time,Transformation3D* skeletonTransformations);
+	static void setDefaultSkeleton(const data::Mesh* mesh,Transformation3D* skeletonTransformations);
 	static void bindSkeleton(const data::SubMesh* submesh,size_t nodeCount,const Transformation3D* skeletonTransformations,JointTransformation3D* jointTransformations);
 };
 

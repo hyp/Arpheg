@@ -30,11 +30,13 @@ namespace data {
 		Pipeline(rendering::Pipeline pipeline);
 
 		inline rendering::Pipeline pipeline() const;
+		inline rendering::Pipeline::Constant& modelViewProjectionConstant();
 	private:
 		rendering::Pipeline pipeline_;
+		rendering::Pipeline::Constant mvp;
 	};
 	inline rendering::Pipeline Pipeline::pipeline() const { return pipeline_; }
-
+	inline rendering::Pipeline::Constant& Pipeline::modelViewProjectionConstant() { return mvp; }
 
 	namespace normalizedUint16 {
 		typedef uint16 Type;
@@ -73,34 +75,6 @@ namespace data {
 	inline uint32 Sprite::frameCount() const { return frameCount_; }
 	inline Sprite::Frame* Sprite::frames() const { return frames_; }
 
-	//A light
-	struct Light {
-		enum Type {
-			Directional,
-			Point,
-			Spot,
-		};
-		enum { kConstantsVec4fCount = 5 };
-		enum { kConstantsSize = kConstantsVec4fCount*sizeof(vec4f) };
-
-		inline Type  type() const;
-		inline vec3f position() const;
-		inline vec3f diffuseColour() const;
-		inline vec3f specularColour() const;
-		inline vec3f ambientColour() const;
-
-		inline float pointLightRadius() const;
-	private:
-		uint32 type_;uint32 properties_;
-		vec4f parameterStorage_       [kConstantsVec4fCount];
-	};
-	inline Light::Type  Light::type() const { return Type(type_); }
-	inline vec3f Light::position() const { return parameterStorage_[0].xyz(); }
-	inline vec3f Light::diffuseColour() const { return parameterStorage_[1].xyz(); }
-	inline vec3f Light::specularColour() const { return parameterStorage_[2].xyz(); }
-	inline vec3f Light::ambientColour() const { return parameterStorage_[3].xyz(); }
-	inline float Light::pointLightRadius() const { return parameterStorage_[4].x; }
-
 #ifndef ARPHEG_DATA_NO3D
 	
 	//Material defines how a mesh is rendered
@@ -113,7 +87,7 @@ namespace data {
 		Material(const rendering::Texture2D* textures,size_t textureCount,const void* constants,size_t constantsSize);
 
 		inline uint32 textureCount() const;
-		inline rendering::Texture2D* textures();
+		inline const rendering::Texture2D* textures() const;
 		//Shader constants.
 		inline core::Bytes constants();	
 		inline vec4f* vec4fConstants();
@@ -123,7 +97,7 @@ namespace data {
 		vec4f parameterStorage_       [kConstantsVec4fCount];
 	};
 	inline uint32 Material::textureCount() const { return data_; }
-	inline rendering::Texture2D* Material::textures() { return textures_; }
+	inline const rendering::Texture2D* Material::textures() const { return textures_; }
 	inline core::Bytes Material::constants() {
 		return core::Bytes(parameterStorage_,kConstantsSize);
 	}
@@ -142,7 +116,7 @@ namespace data {
 		SubMesh(const rendering::Mesh& mesh,uint32 offset,uint32 count,uint32 indexSize,rendering::topology::Primitive mode);
 		inline SubMesh() { }
 
-		inline rendering::Mesh& mesh();
+		inline const rendering::Mesh& mesh() const;
 		inline uint32 primitiveCount() const;
 		inline uint32 primitiveOffset() const;
 		inline uint32 indexSize() const;
@@ -162,7 +136,7 @@ namespace data {
 		enum { kPrimOffset = 28 };
 	};
 	inline Material* SubMesh::material() const { return material_; }
-	inline rendering::Mesh& SubMesh::mesh() { return mesh_; }
+	inline const rendering::Mesh& SubMesh::mesh() const { return mesh_; }
 	inline uint32 SubMesh::primitiveCount()  const{ return data_ & kCountMask; }
 	inline uint32 SubMesh::primitiveOffset() const{ return primitiveOffset_; }
 	inline uint32 SubMesh::indexSize()       const{ return (data_ >> kIndexOffset) & kIndexSizeMask; }

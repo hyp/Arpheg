@@ -354,36 +354,7 @@ void DepthBuffer::getRay(vec3f& o,vec3f& dir,int32 x,int32 y) {
 
 // Box setup 
 static inline void gatherBoxVertices(vec4f vertices[8],vec3f min,vec3f max){
-#ifdef ARPHEG_ARCH_X86
-	auto vvertices = (float*)vertices;
-	__m128 vmin = _mm_setr_ps(min.x,min.y,min.z,1.0f);
-	__m128 vmax = _mm_setr_ps(max.x,max.y,max.z,1.0f);
-	__m128 r;
-	_mm_store_ps(vvertices,vmin); //min
-	r = _mm_move_ss(vmin,vmax); 
-	_mm_store_ps(vvertices+4,r);//max.x,min.y,min.z
-	r = _mm_shuffle_ps(vmax,vmin,_MM_SHUFFLE(3,2,1,0)); 
-	_mm_store_ps(vvertices+8,r);//max.x,max.y,min.z,1
-	r = _mm_move_ss(r,vmin); 
-	_mm_store_ps(vvertices+12,r);//min.x,max.y,min.z
-
-	r = _mm_shuffle_ps(vmin,vmax,_MM_SHUFFLE(3,2,1,0)); 
-	_mm_store_ps(vvertices+16,r);//min.x,min.y,max.z
-	r = _mm_move_ss(r,vmax);
-	_mm_store_ps(vvertices+20,r); //max.x,min.y,max.z
-	_mm_store_ps(vvertices+24,vmax);//max
-	r = _mm_move_ss(vmax,vmin); 
-	_mm_store_ps(vvertices+28,r); //min.x,max.y,max.z
-#else
-	vertices[0] = vec4f(min.x,min.y,min.z,1);
-	vertices[1] = vec4f(max.x,min.y,min.z,1);
-	vertices[2] = vec4f(max.x,max.y,min.z,1);
-	vertices[3] = vec4f(min.x,max.y,min.z,1);
-	vertices[4] = vec4f(min.x,min.y,max.z,1);
-	vertices[5] = vec4f(max.x,min.y,max.z,1);
-	vertices[6] = vec4f(max.x,max.y,max.z,1);
-	vertices[7] = vec4f(min.x,max.y,max.z,1);
-#endif
+	return math::utils::gatherBoxVertices(vertices,min,max);
 }
 static inline void transformBoxVertices(vec4f vertices[8],const mat44f& matrix){
 	//Transform the vertices to homogenous coordinates
@@ -999,9 +970,9 @@ bool DepthBuffer::testTriangle2x2(const vec4f& v0,const vec4f& v1,const vec4f& v
 	VecS32 rowOffset(0, 0, 1, 1);
 
 	vec2i vertex[3];
-	vertex[0] = vec2i(v0.x,v0.y);
-	vertex[1] = vec2i(v1.x,v1.y);
-	vertex[2] = vec2i(v2.x,v2.y);
+	vertex[0] = vec2i(int32(v0.x),int32(v0.y));
+	vertex[1] = vec2i(int32(v1.x),int32(v1.y));
+	vertex[2] = vec2i(int32(v2.x),int32(v2.y));
 
 	float minZ = std::min(v0.z,std::min(v1.z,v2.z));
 	VecF32 fixedDepth(minZ);

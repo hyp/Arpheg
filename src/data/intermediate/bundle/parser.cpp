@@ -113,7 +113,7 @@ void Mesh::end(){
 			size_t arrayExtras = mesh.submeshCount() < 2? 0 : sizeof(::data::SubMesh*)*mesh.submeshCount();
 			auto destMesh = service->allocateObject<::data::Mesh>(arrayExtras + sizeof(SubMesh)*mesh.submeshCount() +
 				mesh.skeletonNodeCount()*(sizeof(::data::Mesh::SkeletonJointId)+sizeof(::data::Transformation3D)) + 
-				mesh.skeletonNodeCount()? alignof(::data::Transformation3D) : 0);
+				alignof(::data::Transformation3D)*4);
 			uint8* ptr = (uint8*)(destMesh+1);
 			::data::Mesh::SkeletonJointId* destParentIds = nullptr;
 			::data::Transformation3D* destLocalTransformations = nullptr;

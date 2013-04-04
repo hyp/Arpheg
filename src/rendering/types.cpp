@@ -1,7 +1,28 @@
 #include "../core/math.h"
+#include "../core/assert.h"
 #include "types.h"
 
 namespace rendering {
+
+	Camera::Camera(const mat44f& projectionMatrix,const mat44f& viewMatrix){
+		projection = projectionMatrix;
+		view = viewMatrix;
+		projectionView = projection * view;
+	}
+	void Light::makeDirectional(vec3f direction,vec3f diffuse,vec3f specular,vec3f ambient){
+		parameterStorage_[0] = vec4f(direction.x,direction.y,direction.z,0.0f);
+		parameterStorage_[1] = vec4f(diffuse.x,diffuse.y,diffuse.z,0.0f);
+		parameterStorage_[2] = vec4f(specular.x,specular.y,specular.z,0.0f);
+		parameterStorage_[3] = vec4f(ambient.x,ambient.y,ambient.z,0.0f);
+	}
+	void Light::makePoint(vec3f position,vec3f diffuse,vec3f specular,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation){
+		assert(radius > 0.0f);
+		parameterStorage_[0] = vec4f(position.x,position.y,position.z,ambient.x);
+		parameterStorage_[1] = vec4f(diffuse.x,diffuse.y,diffuse.z,0.0f);
+		parameterStorage_[2] = vec4f(specular.x,specular.y,specular.z,0.0f);
+		parameterStorage_[3] = vec4f(constantAttenuation,linearAttenuation,quadraticAttenuation,radius);
+	}
+
 namespace blending {
 	State disabled() {
 		return State();

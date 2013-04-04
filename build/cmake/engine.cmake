@@ -25,6 +25,7 @@ set(ARPHEG_ENGINE_FILES
 	application/logging.cpp
 	application/tasking.cpp
 	application/profiling.cpp
+	application/memory.cpp
 	
 	input/input.cpp
 	
@@ -36,8 +37,10 @@ set(ARPHEG_ENGINE_FILES
 	rendering/debug.cpp
 	rendering/ui.cpp
 	rendering/2d.cpp
+	rendering/3d.cpp
 	rendering/text.cpp
 	rendering/softwareOcclusion/softwareOcclusion.cpp
+	rendering/frustumCulling.cpp
 	rendering/animation.cpp
 
 	data/data.cpp
@@ -54,6 +57,8 @@ set(ARPHEG_ENGINE_FILES
 	ui/widget.cpp
 	ui/events.cpp
 	ui/components.cpp
+	
+	scene/rendering.cpp
 	
 	collisions/collisions.cpp
 	

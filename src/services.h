@@ -9,6 +9,7 @@
 #include "rendering/rendering.h"
 #include "data/data.h"
 #include "ui/types.h"
+#include "scene/types.h"
 
 namespace services {
 
@@ -22,7 +23,8 @@ namespace services {
 	inline rendering::animation::Service* animation();
 	inline data::Service* data();
 	inline ui::Service* ui();
-	
+	inline scene::rendering::Service* sceneRendering();
+
 	// Frame allocator is also a scratch allocator
 	inline core::BufferAllocator* frameAllocator();
 	inline core::Allocator* threadSafeFrameAllocator();
@@ -47,6 +49,7 @@ namespace services {
 	extern rendering::debug::Service* debugRendering_;
 	extern rendering::animation::Service* animation_;
 	extern data::Service* data_;
+	extern scene::rendering::Service* sceneRendering_;
 	extern ui::Service* ui_;
 	extern application::logging::Service* logging_;
 
@@ -66,4 +69,5 @@ inline core::Allocator* services::threadSafeFrameAllocator() { return frameAlloc
 inline core::Allocator* services::permanentAllocator() { return permanentAllocator_; }
 inline application::logging::Service* services::logging()     { return logging_; }
 inline data::Service* services::data() { return data_;  }
+inline scene::rendering::Service* services::sceneRendering() { return sceneRendering_; }
 inline ui::Service* services::ui() { return ui_; }

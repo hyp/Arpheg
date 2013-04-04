@@ -13,7 +13,11 @@
 #include "../../src/rendering/softwareOcclusion/softwareOcclusion.h"
 #include "../../src/rendering/animation.h"
 #include "../../src/application/profiling.h"
+#include "../../src/rendering/3d.h"
+#include "../../src/scene/types.h"
+#include "../../src/scene/rendering.h"
 
+#include "../../src/rendering/opengl/gl.h"
 int main(){
 	services::init();
 	services::logging()->priority(application::logging::Trace);
@@ -27,6 +31,7 @@ int main(){
 
 	//Data
 	data->loadBundle(ARPHEG_ROOT_PATH "data/core/core.txt");
+	auto repeatSampler = data->sampler("rendering.sampler.repeatLinear");
 	data->loadBundle(ARPHEG_ROOT_PATH "data/sample.txt");
 
 	ui::Image image(data->sprite("icon"));
@@ -51,8 +56,30 @@ int main(){
 	services::ui()->root()->addChild(&depthView);
 
 
-		
+
+	vec4f vertices[8];
+	math::utils::gatherBoxVertices(vertices,vec3f(-1.0f,-1.0f,-1.0f),vec3f(1.0f,1.0f,1.0f));
+	uint16 ind[36];
+	
+	uint16* indices = ind;
+	indices[0] = 2; indices[1] = 1; indices[2] = 0; indices[3] = 0;indices[4] = 3;indices[5] = 2;indices+=6;
+	indices[0] = 4; indices[1] = 5; indices[2] = 6; indices[3] = 6;indices[4] = 7;indices[5] = 4;indices+=6;
+	indices[0] = 4; indices[1] = 3; indices[2] = 0; indices[3] = 7;indices[4] = 3;indices[5] = 4;indices+=6;
+	indices[0] = 1; indices[1] = 2; indices[2] = 5; indices[3] = 5;indices[4] = 2;indices[5] = 6;indices+=6;
+	indices[0] = 0; indices[1] = 1; indices[2] = 5; indices[3] = 0;indices[4] = 5;indices[5] = 4;indices+=6;
+	indices[0] = 6; indices[1] = 2; indices[2] = 3; indices[3] = 3;indices[4] = 7;indices[5] = 6;indices+=6;
+
+	auto vbo = renderer->create(rendering::Buffer::Vertex,false,sizeof(vertices),vertices);
+	auto ibo = renderer->create(rendering::Buffer::Index,false,sizeof(ind),ind);
+	auto cubeMesh = renderer->create(vbo,ibo,rendering::VertexDescriptor::positionAs4Float());
+	auto cubePipe = data->pipeline("raymarch");
+	rendering::Pipeline::Constant cubePipeMvp("mvp");
+	rendering::Pipeline::Constant cubePipeMv("mv");
+	rendering::Pipeline::Constant cubeTexture("flameTexture");
+
 	auto mesh    = data->mesh("head");
+	auto foo = data->mesh("foo");
+	auto staticMeshPipeline = data->pipeline("staticMeshPipeline");
 	auto animation = data->animation("head.animation.0");
 	auto program = data->pipeline("default");
 	auto font    = data->font("fonts.lily64px");
@@ -73,6 +100,17 @@ int main(){
 
 	float cam = 3.f;
 	float anim = 0.f;
+
+	auto ent = services::sceneRendering()->create(foo->submesh(0),foo->submesh(0)->material(),vec3f(20,0,0),Quaternion::identity(),vec3f(1.0f,2.0f,1.0f));
+	
+	for(int x = 0;x<5;++x){
+	for(int y = 0;y<1;++y){
+	for(int z = 0;z<5;++z){
+		auto human = services::sceneRendering()->create(mesh,mesh->submesh(0)->material(),vec3f(float(x)*2.0f,float(y)*2.0f,float(z)*2.0f),Quaternion::identity(),vec3f(0.5f,0.5f,0.5f));
+		services::sceneRendering()->addAnimation(human,animation);
+	} } }
+	application::profiling::Timer profAnim("Animation interpolation");
+
 
 	while(!services::application()->quitRequest()){
 		services::preStep();
@@ -95,7 +133,11 @@ int main(){
 		mat44f projection = mat44f::perspective(math::pi/2,float(viewport.size.x)/float(viewport.size.y),0.1,1000.0);
 		mat44f view       = mat44f::lookAt     (vec3f(cam,cam,cam),vec3f(0,0,0),vec3f(0,1,0));
 		auto pv= projection*view;
-		renderer->bind(mvp,pv);
+
+		rendering::Camera camera( mat44f::perspective(math::pi/2,float(viewport.size.x)/float(viewport.size.y),0.1,1000.0),
+								  mat44f::lookAt     (vec3f(cam,cam,cam),vec3f(0,0,0),vec3f(0,1,0)) );
+
+		renderer->bind(mvp,camera.calculateMvp(mat44f::identity()));
 
 
 		struct Box {
@@ -153,11 +195,39 @@ int main(){
 			}
 
 			renderer->bind(submesh->mesh(),submesh->primitiveKind(),submesh->indexSize());
-			renderer->drawIndexed(submesh->primitiveOffset(),submesh->primitiveCount());
+			//renderer->drawIndexed(submesh->primitiveOffset(),submesh->primitiveCount());
 		}
-		
+
+		rendering::DirectMeshRenderer dmr;
+		dmr.bind(camera);
+		dmr.bind(staticMeshPipeline,program);
+		scene::events::Draw ev; ev.meshRenderer = &dmr;
+		rendering::frustumCulling::Frustum f(camera);
+		services::sceneRendering()->spawnFrustumCullingTasks(&f,1);
+		profAnim.start();
+		services::sceneRendering()->spawnAnimationTasks();
+		profAnim.end();
+		services::sceneRendering()->render(ev);
 		
 
+		
+		
+		/*glEnable (GL_CULL_FACE);
+		glDisable(GL_DEPTH_TEST);
+		renderer->bind(rendering::blending::alpha());
+		renderer->bind(cubePipe->pipeline());
+		renderer->bind(cubePipeMvp,pv);
+		renderer->bind(cubePipeMv,view);
+		static float currentTime = 0.f;
+		currentTime+=services::timing()->dt();
+		renderer->bind(rendering::Pipeline::Constant("currentTime"),&currentTime);
+		int xxx = 0;
+		auto t = data->texture2D("flameTexture");
+		//renderer->bind(repeatSampler,0);
+		renderer->bind(t,0);
+		renderer->bind(cubeTexture,&xxx);
+		renderer->bind(cubeMesh,rendering::topology::Triangle,sizeof(uint16));
+		renderer->drawIndexed(0,36);*/
 
 
 		auto debugRenderer = services::debugRendering();
@@ -173,7 +243,7 @@ int main(){
 		tview.pipeline_ = services::data()->pipeline(services::data()->bundle("core",true),"rendering.visualize.depthBuffer.pipeline",true)->pipeline();
 
 		char fps[128];
-		sprintf(fps,"Dt = %f,%f,%d,%s",services::timing()->dt(),profRasterizeTiles.currentTime(),cov,vis?"true":"false");
+		sprintf(fps,"Dt = %f,%f,%d,%s,%d",services::timing()->dt(),profRasterizeTiles.currentTime(),cov,vis?"true":"false",services::sceneRendering()->renderedEntityCount());
 		text.string_ = core::Bytes((void*)fps,strlen(fps));
 		
 		services::ui()->drawWidgets();

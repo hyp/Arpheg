@@ -46,18 +46,6 @@ bool  overlaps(const Frustum& frustum,const AABox3D& b) {
 	return true;
 }
 
-namespace simd {
-	
-	using namespace ::simd;
-
-//a.min.x > b.min.x
-//a.max.x <= a.min.x
-#define AABB_SEPARATING_AXIS(a,b,n)  \
-	firstCompare = compareGreaterThan(a.min[n],b.min[n]) \
-	compareLessEquals(b.max[n],a.min[n])  \
-	compareLessEquals(a.max[n],b.min[n])  
-}
-
 bool  overlaps(const AABox3D& a,const AABox3D& b){
 	//overlap on the x axis?
 	if(a.min.x > b.min.x){

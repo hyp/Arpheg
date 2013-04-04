@@ -27,42 +27,45 @@ inline float vec4f::sum() const { return x+y+z+w; }
 inline float vec4f::dot(const vec4f& v) const  { return x*v.x+y*v.y+z*v.z+w*v.w; }
 inline float vec4f::dot3(const vec4f& v) const { return x*v.x+y*v.y+z*v.z; }
 
+inline vec4f vec4f::fma(const vec4f& a,const vec4f& b,const vec4f& c) { return a*b +c; }
+
 #ifdef ARPHEG_ARCH_X86 //Assume SSE2 is supported
 
 	inline vec4f::vec4f(float xx) {
 		__m128 mk = _mm_set_ps1(xx);
 		_mm_store_ps(&x,mk);
 	}
-	inline vec4f::vec4f(__m128 value) { _mm_store_ps(&x,value); }
-	inline void vec4f::operator = (__m128 value) { _mm_store_ps(&x,value); }
-	inline __m128 vec4f::m128() const { return _mm_load_ps(&x); }
+	inline vec4f::vec4f(__m128 value) { xyzw = value; }
+	inline void vec4f::operator = (__m128 value) { xyzw = value; }
+	inline __m128 vec4f::fma(__m128 a,__m128 b,__m128 c) { return _mm_add_ps(_mm_mul_ps(a,b),c); }
+	inline __m128 vec4f::m128() const { return xyzw; }
 
-	inline vec4f vec4f::operator + (const vec4f& v) const { return vec4f(_mm_add_ps(*(__m128*)(&x),*(__m128*)(&v.x))); } 
-	inline vec4f vec4f::operator - (const vec4f& v) const { return vec4f(_mm_sub_ps(*(__m128*)(&x),*(__m128*)(&v.x))); } 
-	inline vec4f vec4f::operator * (const vec4f& v) const { return vec4f(_mm_mul_ps(*(__m128*)(&x),*(__m128*)(&v.x))); }
-	inline vec4f vec4f::operator / (const vec4f& v) const { return vec4f(_mm_div_ps(*(__m128*)(&x),*(__m128*)(&v.x))); }
+	inline vec4f vec4f::operator + (const vec4f& v) const { return vec4f(_mm_add_ps(xyzw,v.xyzw)); } 
+	inline vec4f vec4f::operator - (const vec4f& v) const { return vec4f(_mm_sub_ps(xyzw,v.xyzw)); } 
+	inline vec4f vec4f::operator * (const vec4f& v) const { return vec4f(_mm_mul_ps(xyzw,v.xyzw)); }
+	inline vec4f vec4f::operator / (const vec4f& v) const { return vec4f(_mm_div_ps(xyzw,v.xyzw)); }
 	inline vec4f vec4f::operator * (float k) const { 
 		__m128 mk = _mm_set_ps1(k);
-		return vec4f(_mm_mul_ps(*(__m128*)(&x),mk));
+		return vec4f(_mm_mul_ps(xyzw,mk));
 	}
 
 	inline vec4f vec4f::zero() { return vec4f(_mm_setzero_ps()); }
 	inline vec4f vec4f::load(const float *ptr) { return vec4f(_mm_load_ps(ptr)); }
 	inline vec4f vec4f::unalignedLoad(const float *ptr) { return vec4f(_mm_loadu_ps(ptr)); }
-	inline void  vec4f::store(float *ptr) const { _mm_store_ps(ptr, *(__m128*)(&x)); }
-	inline void  vec4f::unalignedStore(float *ptr) const { _mm_storeu_ps(ptr, *(__m128*)(&x)); }
+	inline void  vec4f::store(float *ptr) const { _mm_store_ps(ptr, xyzw); }
+	inline void  vec4f::unalignedStore(float *ptr) const { _mm_storeu_ps(ptr, xyzw); }
 
 	inline vec4f vec4f::min(const vec4f& x,const vec4f& y) {
-		return vec4f(_mm_min_ps(*(__m128*)(&x.x),*(__m128*)(&y.x)));
+		return vec4f(_mm_min_ps(x.xyzw,y.xyzw));
 	}
 	inline vec4f vec4f::max(const vec4f& x,const vec4f& y) {
-		return vec4f(_mm_max_ps(*(__m128*)(&x.x),*(__m128*)(&y.x)));
+		return vec4f(_mm_max_ps(x.xyzw,y.xyzw));
 	}
-	//TODO sse shuffle
-	inline vec4f vec4f::xxxx() const { return vec4f(x,x,x,x); }
-	inline vec4f vec4f::yyyy() const { return vec4f(y,y,y,y); }
-	inline vec4f vec4f::zzzz() const { return vec4f(z,z,z,z); }
-	inline vec4f vec4f::wwww() const { return vec4f(w,w,w,w); }
+	
+	inline vec4f vec4f::xxxx() const { return vec4f(_mm_shuffle_ps(xyzw,xyzw,_MM_SHUFFLE(0,0,0,0)) ); }
+	inline vec4f vec4f::yyyy() const { return vec4f(_mm_shuffle_ps(xyzw,xyzw,_MM_SHUFFLE(1,1,1,1)) ); }
+	inline vec4f vec4f::zzzz() const { return vec4f(_mm_shuffle_ps(xyzw,xyzw,_MM_SHUFFLE(2,2,2,2)) ); }
+	inline vec4f vec4f::wwww() const { return vec4f(_mm_shuffle_ps(xyzw,xyzw,_MM_SHUFFLE(3,3,3,3)) ); }
 
 #else
 

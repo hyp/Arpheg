@@ -12,6 +12,7 @@ struct Preprocessor {
 	Preprocessor(core::Allocator* allocator);
 	~Preprocessor();
 	core::Bytes preprocess(core::Bytes source);
+
 private:
 	uint8* src;
 	core::Allocator* allocator;
