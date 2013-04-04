@@ -14,6 +14,8 @@ list(APPEND ARPHEG_LIBS ${ZLIB_LIBRARY})
 include_directories(${ZLIB_INCLUDE_DIR})
 find_package(ASSIMP REQUIRED)
 list(APPEND ARPHEG_LIBS ${ASSIMP_LIBRARY})
+find_package(LUA REQUIRED)
+list(APPEND ARPHEG_LIBS ${LUA_LIBRARY})
 
 # Provides a list of files for the engine
 
