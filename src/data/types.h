@@ -105,13 +105,12 @@ namespace data {
 		return parameterStorage_;
 	}
 
-	//TODO Can be 3x4 matrix.
-	typedef mat44f Transformation3D;
+	typedef mat34fRowMajor Transformation3D;
 
 	// A submesh is a renderable mesh resource.
 	struct SubMesh {
 		//A joint is used for skeletal animation (it stores the bind pose matrix).
-		typedef Transformation3D Joint;
+		typedef mat44f Joint;
 
 		SubMesh(const rendering::Mesh& mesh,uint32 offset,uint32 count,uint32 indexSize,rendering::topology::Primitive mode);
 		inline SubMesh() { }

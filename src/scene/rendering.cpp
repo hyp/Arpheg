@@ -305,7 +305,7 @@ static inline void getMatrices(EntityTransformation& transformation,mat44f& worl
 	Quaternion rotation(vec4f::load(transformation.rotation));
 	vec3f translation(transformation.translation[0],transformation.translation[1],transformation.translation[2]);
 	vec3f scaling(transformation.scaling[0],transformation.scaling[1],transformation.scaling[2]);
-	world = mat44f::translateRotateScale(translation,rotation,scaling);//mat44f(mat34fRowMajor::translateRotateScale(translation,rotation,scaling));// mat44f::translateRotateScale(translation,rotation,scaling);
+	world = mat44f::translateRotateScale(translation,rotation,scaling);
 }
 void Service::render(events::Draw& ev){
 	using namespace core::bufferArray;

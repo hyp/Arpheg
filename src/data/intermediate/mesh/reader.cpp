@@ -1,8 +1,5 @@
 // This module implements an importer for mesh files using the ASSIMP library.
-
-
-
-#if !defined(ARPHEG_RESOURCES_NO_FORMATTED) && !defined(ARPHEG_PLATFORM_MOBILE)
+#define ARPHEG_BUILD_DATA_LIB 1
 
 #include <vector>
 #include <map>
@@ -48,12 +45,24 @@ inline void move3(float* dest,const aiVector3D& v){
 	dest[0] = v.x;dest[1] = v.y;dest[2] = v.z;
 }
 
-static void convertMatrix(mat44f* dest,const aiMatrix4x4& matrix){
+
+static inline void convertMatrix(mat44f* dest,const aiMatrix4x4& matrix){
 	//NB we need column major matrices so do transpose.
 	*dest = mat44f(vec4f(matrix.a1,matrix.a2,matrix.a3,matrix.a4),vec4f(matrix.b1,matrix.b2,matrix.b3,matrix.b4),
 		vec4f(matrix.c1,matrix.c2,matrix.c3,matrix.c4),vec4f(matrix.d1,matrix.d2,matrix.d3,matrix.d4));
 	dest->transposeSelf();
 }
+static inline void convertMatrix(mat34fRowMajor* dest,const aiMatrix4x4& matrix){
+	//ASSIMP's matrices are row major.
+	*dest = mat34fRowMajor(
+		vec4f(matrix.a1,matrix.a2,matrix.a3,matrix.a4),
+		vec4f(matrix.b1,matrix.b2,matrix.b3,matrix.b4),
+		vec4f(matrix.c1,matrix.c2,matrix.c3,matrix.c4));
+	if(matrix.d1 != 0.f || matrix.d2 != 0.f || matrix.d3 != 0.f || matrix.d4 != 1.f){
+		assert(false && "Invalid transformation!");
+	}
+}
+
 
 struct Scene;
 
@@ -456,7 +465,7 @@ void Scene::selectVertexFormat(const aiMesh* mesh){
 			convertMatrix(&destJoints[i],bone->mOffsetMatrix);
 			skeletonBoneMapping[bone] = uint32(i);
 		} else {
-			destJoints[i] = ::data::Transformation3D::identity();
+			destJoints[i] = ::data::SubMesh::Joint::identity();
 		}
 	}
 
@@ -658,12 +667,3 @@ void Reader::load(application::logging::Service* logger,core::Allocator* allocat
 #endif
 
 } } }
-
-#else
-
-#include "reader.h"
-
-void data::intermediate::mesh::Reader::load(const char* name,const Options& options) {
-}
-
-#endif

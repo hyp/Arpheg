@@ -174,6 +174,7 @@ STRUCT_PREALIGN(16) struct mat34fRowMajor {
 	static mat34fRowMajor scale(vec3f x);
 	static mat34fRowMajor rotate(const Quaternion& rotation);
 	static mat34fRowMajor translateRotateScale(const vec3f& translation,const Quaternion& rotation,const vec3f& scaling);
+	inline vec3f translationComponent() const;
 } STRUCT_POSTALIGN(16) ;
 
 inline mat34fRowMajor mat34fRowMajor::operator *  (const mat34fRowMajor& other) const { 
@@ -184,6 +185,7 @@ inline mat34fRowMajor mat34fRowMajor::operator *  (const mat34fRowMajor& other) 
 inline void   mat34fRowMajor::operator *= (const mat34fRowMajor& other) {
 	multiply(*this,other);
 }
+inline vec3f mat34fRowMajor::translationComponent() const { return vec3f(a.w,b.w,c.w); }
 
 //The 4x4 matrix is stored in Column-major(OpenGL order).
 STRUCT_PREALIGN(16) struct mat44f {

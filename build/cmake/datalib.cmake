@@ -7,6 +7,7 @@ set(ARPHEG_DATALIB_FILES
 	data/3d.cpp
 	data/utils/path.cpp
 	data/intermediate/datalib.cpp
+	data/intermediate/mesh/reader.cpp
 )
 foreach(i ${ARPHEG_DATALIB_FILES})
 	list(APPEND ARPHEG_FILES_DATALIB "../src/${i}")

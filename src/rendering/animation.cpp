@@ -121,7 +121,7 @@ inline Transformation3D Animator::calculateLocalTransformation(const data::anima
 			break;
 		}
 	}
-	return mat44f::translateRotateScale(position,rotation,scaling);
+	return Transformation3D::translateRotateScale(position,rotation,scaling);
 }
 
 void Animator::animate(const data::Mesh* mesh,const data::animation::Animation* animation,float& time,Transformation3D* transformations) {
@@ -145,8 +145,10 @@ void Animator::animate(const data::Mesh* mesh,const data::animation::Animation* 
 	if(touchedNodesMask.isNotTouched(0))
 		transformations[0] = defaults[0];
 	for(size_t i = 1;i<nodeCount;++i){
-		if(touchedNodesMask.isNotTouched(i)) transformations[i] = transformations[parentIds[i]] * defaults[i];
-		else transformations[i] = transformations[parentIds[i]] * transformations[i];
+		//transformations[i] = defaults[i] * transformations[parentIds[i]]
+		if(touchedNodesMask.isNotTouched(i)) Transformation3D::multiply(defaults[i],transformations[parentIds[i]],transformations[i]);
+		//transformations[i] *= transformations[parentIds[i]]
+		else Transformation3D::multiply(transformations[i],transformations[parentIds[i]]);
 	}
 }
 void Animator::setDefaultSkeleton(const data::Mesh* mesh,Transformation3D* transformations) {
@@ -157,13 +159,14 @@ void Animator::setDefaultSkeleton(const data::Mesh* mesh,Transformation3D* trans
 	auto defaults  = mesh->skeletonDefaultLocalTransformations();
 	transformations[0] = defaults[0];
 	for(size_t i = 1;i<nodeCount;++i){
-		transformations[i] = transformations[parentIds[i]] * defaults[i];
+		transformations[i] = defaults[i] * transformations[parentIds[i]];
+
 	}
 }
 void Animator::bindSkeleton(const data::SubMesh* submesh,size_t nodeCount,const Transformation3D* skeletonTransformations,JointTransformation3D* jointTransformations) {
 	auto bindPoses = submesh->skeletonJoints();
 	for(size_t i = 1;i<nodeCount;++i){
-		jointTransformations[i] = skeletonTransformations[i] * bindPoses[i];
+		jointTransformations[i] = mat44f(skeletonTransformations[i]) * bindPoses[i];
 	}
 }
 

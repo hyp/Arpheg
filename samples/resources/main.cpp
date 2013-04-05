@@ -109,9 +109,9 @@ int main(){
 	auto ent = services::sceneRendering()->create(foo->submesh(0),foo->submesh(0)->material(),vec3f(20,0,0),Quaternion::identity(),vec3f(1.0f,2.0f,1.0f));
 	
 	for(int x = 0;x<5;++x){
-	for(int y = 0;y<1;++y){
+	for(int y = 0;y<5;++y){
 	for(int z = 0;z<5;++z){
-		auto human = services::sceneRendering()->create(mesh,mesh->submesh(0)->material(),vec3f(float(x)*2.0f,float(y)*2.0f,float(z)*2.0f),Quaternion::identity(),vec3f(0.5f,0.5f,0.5f));
+		auto human = services::sceneRendering()->create(mesh,mesh->submesh(0)->material(),vec3f(float(x)*2.0f,float(y)*2.0f,float(z)*2.0f),Quaternion::rotateY(math::pi/4.0),vec3f(0.5,0.5,0.5));
 		services::sceneRendering()->addAnimation(human,animation);
 	} } }
 	application::profiling::Timer profAnim("Animation interpolation");
@@ -186,9 +186,9 @@ int main(){
 		for(size_t i = 0;i<mesh->submeshCount();++i){
 			auto submesh = mesh->submesh(i);
 
-			auto bones = animator->transformationBuffer().allocate(mesh->skeletonNodeCount());
-			rendering::animation::Animator::bindSkeleton(submesh,mesh->skeletonNodeCount(),nodes,bones);
-			renderer->bind(c,(void*)bones);
+			//auto bones = animator->transformationBuffer().allocate(mesh->skeletonNodeCount());
+			//rendering::animation::Animator::bindSkeleton(submesh,mesh->skeletonNodeCount(),nodes,bones);
+			//renderer->bind(c,(void*)bones);
 			
 			if(auto mat= submesh->material()){
 				uint32 slots[::data::Material::kMaxTextures];

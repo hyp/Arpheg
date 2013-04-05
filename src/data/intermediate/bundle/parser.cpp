@@ -242,7 +242,6 @@ void Mesh::end(){
 	parser->pushPath(path);
 	data::intermediate::mesh::Reader::Options opt;
 	func(&reader,services::logging(),core::memory::globalAllocator(),p,&opt);
-	//reader.load(services::logging(),core::memory::globalAllocator(),p);
 	parser->popPath();
 }
 
