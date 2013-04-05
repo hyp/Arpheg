@@ -70,11 +70,14 @@ struct Scene;
 struct MeshImporter {
 	enum { kMaxSizeof = 256 };
 
+	vec4f vmin,vmax;
 	Mesh* dest;
 	size_t vertexStride, vertexWeightOffset;
 	uint32 weightsPerVertex;
 	core::Allocator* allocator;
+	
 
+	MeshImporter() : vmin(0.f),vmax(0.f) {}
 	inline void* allocateVertices(size_t size){
 		dest->vertices.begin = (uint8*)allocator->allocate(size*vertexStride,alignof(vec4f));
 		dest->vertices.end   = dest->vertices.begin + size*vertexStride;
@@ -136,7 +139,12 @@ struct MeshImporter {
 		auto ptr = dest->vertices.begin + vertexStride*vertexId + vertexWeightOffset;
 		((float*)ptr)[weightId] = ::data::animation::packing::boneWeightAndIdToFloat(weight,boneId);
 	}
-
+	inline void movePosition(float* dest,const aiVector3D& v){
+		auto vv = vec4f(v.x,v.y,v.z,0.f);
+		vmin = vec4f::min(vmin,vv);
+		vmax = vec4f::max(vmax,vv);
+		move3(dest,v);
+	}
 
 };
 struct PositionImporter:MeshImporter {
@@ -148,7 +156,7 @@ struct PositionImporter:MeshImporter {
 		uint32 vcount = mesh->mNumVertices;
 		float* dest = (float*)allocateVertices(vcount);
 		for(uint32 i =0;i < vcount;++i,dest = (float*) (((uint8*)dest)+vertexStride) ){
-			move3(dest,matrix*vertices[i]);
+			movePosition(dest,matrix*vertices[i]);
 		}
 	}
 };
@@ -162,7 +170,7 @@ struct PositionNormalImporter:MeshImporter {
 		uint32 vcount = mesh->mNumVertices;
 		float* dest = (float*)allocateVertices(vcount);
 		for(uint32 i =0;i < vcount;++i,dest = (float*) (((uint8*)dest)+vertexStride) ){
-			move3(dest,matrix*vertices[i]);
+			movePosition(dest,matrix*vertices[i]);
 			move3(dest+3,normalMatrix.Rotate(normals[i]));
 		}
 	}
@@ -179,7 +187,7 @@ struct PositionNormalTexcoord2DImporter:MeshImporter {
 		float* dest = (float*)allocateVertices(vcount);
 		
 		for(uint32 i =0;i < vcount;++i,dest = (float*) (((uint8*)dest)+vertexStride)){
-			move3(dest,matrix*vertices[i]);
+			movePosition(dest,matrix*vertices[i]);
 			move3(dest+3,normalMatrix.Rotate(normals[i]));
 			dest[6] = texcoords[i].x;dest[7] = texcoords[i].y;
 		}
@@ -194,6 +202,7 @@ struct Scene {
 	const aiScene* scene;
 	MeshImporter* importer;
 	core::Allocator* allocator;
+	vec4f vmin,vmax;
 
 	std::vector<Mesh> submeshes;
 	struct BoneNode {
@@ -222,6 +231,7 @@ struct Scene {
 	inline bool hasSkeleton() const { return resultingMesh.hasSkeleton(); }
 	const aiNode* findSkeletonNode(const aiString& name);
 	void importSkeletalAnimationTracks();
+	void selectFrustumBounder();
 };
 Scene::Scene(application::logging::Service* logger,core::Allocator* allocator) : resultingMesh(nullptr) {
 	logging = logger;
@@ -415,6 +425,7 @@ void Scene::selectVertexFormat(const aiMesh* mesh){
 	bool normals   = mesh->HasNormals();
 	bool texcoords = mesh->HasTextureCoords(0);
 
+	auto storageForImporter = core::memory::align_forward(this->storageForImporter,alignof(vec4f));
 	if(normals){
 		if(texcoords) importer = new(storageForImporter) PositionNormalTexcoord2DImporter;
 		else importer = new(storageForImporter) PositionNormalImporter;
@@ -516,6 +527,14 @@ void Scene::recursiveImport(aiNode* node,aiMatrix4x4 transform) {
 	for (uint32 i = 0; i < node->mNumChildren; ++i) 
 		recursiveImport (node->mChildren[i],matrix);
 }
+void Scene::selectFrustumBounder() {
+	auto min = importer->vmin;
+	auto max = importer->vmax;
+	auto mid = (max - min)*0.5f;
+	resultingMesh.frustumShapeOffset = (min + mid).xyz();
+	resultingMesh.frustumShapeSize   = (mid).xyz();
+	resultingMesh.cullflags = ::data::Mesh::FrustumCullSphere;
+}
 void Scene::importIntoOneMesh(const aiScene* scene){
 	this->scene = scene;
 
@@ -533,6 +552,7 @@ void Scene::importIntoOneMesh(const aiScene* scene){
 	recursiveImport(scene->mRootNode,aiMatrix4x4());
 	if(scene->HasAnimations() && hasSkeleton()) importSkeletalAnimationTracks();
 	resultingMesh.submeshCount_ = submeshes.size();
+	selectFrustumBounder();
 	reader->processMesh(&submeshes[0],resultingMesh,hasSkeleton()? Reader::Options::VertexWeights : 0);
 }
 const aiNode* Scene::findSkeletonNode(const aiString& name) {

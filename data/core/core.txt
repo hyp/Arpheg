@@ -136,7 +136,7 @@ pipeline:
 		uniform sampler2D textures;
 		DEF_PIXEL_SHADER_OUT;
 		void main(){
-			lowp value = dot(texture2D(textures,vsTexcoord),vsChannelMask);
+			lowp float value = dot(texture2D(textures,vsTexcoord),vsChannelMask);
 			if(value > 0.69){
 				 lowp float k = (2.0*value - 1.0);
 				 PIXEL_SHADER_OUT = vec4(vsColour.xyz*k + vsBorderColour.xyz*(1.0-k),vsColour.a);

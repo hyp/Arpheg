@@ -77,10 +77,14 @@ void Material::end() {
 
 //A mesh from the text bundle importer
 class Mesh: public SubParser {
+public:
 	String id;
 	String path;
 	String materialId;
+	bool useBoundingSphere;
+	vec4f boundingSphere;
 
+	Mesh() : useBoundingSphere(false) {}
 	void set(core::Bytes id);
 	void end();
 };
@@ -90,6 +94,10 @@ void Mesh::set(core::Bytes id){
 	else if(equals(id,"path")) path = parser->string();
 	else if(equals(id,"material")) materialId = parser->string();
 	else if(equals(id,"scale")) auto scalar = parser->number();
+	else if(equals(id,"boundingSphere")){
+		boundingSphere = parser->vec4();
+		useBoundingSphere = true;
+	}
 }
 void Mesh::end(){
 
@@ -165,6 +173,14 @@ void Mesh::end(){
 			destMesh->boneCount_ = mesh.boneCount_;
 			destMesh->skeletonHierarchy_ = destParentIds;
 			destMesh->skeletonLocalTransforms_ = destLocalTransformations;
+			destMesh->frustumShapeOffset = mesh.frustumShapeOffset;
+			destMesh->frustumShapeSize = mesh.frustumShapeSize;
+			destMesh->cullflags = mesh.cullflags;
+			if(self->useBoundingSphere){
+				destMesh->cullflags = ::data::Mesh::FrustumCullSphere;
+				destMesh->frustumShapeOffset = self->boundingSphere.xyz();
+				destMesh->frustumShapeSize = self->boundingSphere.wwww().xyz();
+			}
 			service->mapPointerToID(bundle,destMesh,self->id);
 		}
 		void Reader::processMaterial(const char* name,const char** textures,size_t textureCount) {

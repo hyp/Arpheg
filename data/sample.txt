@@ -8,7 +8,7 @@ pipeline:
 	
 pipeline:
 	id = 'staticMeshPipeline'
-	glsl.vertexAttribues: 'position', 'normal', 'texcoord'
+	glsl.vertexAttributes: 'position', 'normal', 'texcoord'
 	vertexShader = 'shaders/shaderVertex.glsl'
 	pixelShader = 'shaders/shaderPixel.glsl'
 
@@ -332,6 +332,7 @@ sprite:
 mesh:
 	id = 'head'
 	path = 'meshes/idle.dae'
+	boundingSphere: 0,1.5,0,2
 	
 mesh:
 	id = 'foo'

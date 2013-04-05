@@ -106,12 +106,12 @@ int main(){
 	float cam = 3.f;
 	float anim = 0.f;
 
-	auto ent = services::sceneRendering()->create(foo->submesh(0),foo->submesh(0)->material(),vec3f(20,0,0),Quaternion::identity(),vec3f(1.0f,2.0f,1.0f));
+	auto ent = services::sceneRendering()->create(foo,foo->submesh(0)->material(),vec3f(20,0,0),Quaternion::identity(),vec3f(1.0f,2.0f,1.0f));
 	
 	for(int x = 0;x<5;++x){
-	for(int y = 0;y<5;++y){
-	for(int z = 0;z<5;++z){
-		auto human = services::sceneRendering()->create(mesh,mesh->submesh(0)->material(),vec3f(float(x)*2.0f,float(y)*2.0f,float(z)*2.0f),Quaternion::rotateY(math::pi/4.0),vec3f(0.5,0.5,0.5));
+	for(int y = 0;y<1;++y){
+	for(int z = 0;z<1;++z){
+		auto human = services::sceneRendering()->create(mesh,mesh->submesh(0)->material(),vec3f(float(x)*2.0f,float(y)*2.0f,float(z)*2.0f),Quaternion::rotateY(math::pi/4.0),vec3f(1.0,1.0,1.0));
 		services::sceneRendering()->addAnimation(human,animation);
 	} } }
 	application::profiling::Timer profAnim("Animation interpolation");

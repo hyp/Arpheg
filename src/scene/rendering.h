@@ -113,7 +113,6 @@ namespace rendering {
 		~Service();
 		void servicePreStep();
 
-		EntityId create(data::SubMesh* mesh,data::Material* material,const vec3f& position,const Quaternion& rotation,const vec3f& scale);
 		EntityId create(data::Mesh* mesh,data::Material* material,const vec3f& position,const Quaternion& rotation,const vec3f& scale);
 		void addAnimation(EntityId id,data::animation::Animation* animation,int count = 0,float t = 0.f);
 		void removeAnimation(EntityId id,data::animation::Animation* animation);

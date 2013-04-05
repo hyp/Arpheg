@@ -62,6 +62,12 @@ static inline uint32 allocateGroupBlock(EntityGridCell::BlockGroup<T>& group,con
 	return 0;
 }
 
+template<typename T,typename Shape>
+static inline void getShape(const EntityGridCell::BlockGroup<T>& group,uint32 id,Shape& result){
+	auto block = id>>kBlockIdOffset;
+	result = group.blocks[block].positions[id&kEntityIdMask];
+}
+
 EntityGridCell::EntityGridCell() {
 	initGroup(sphereFrustumCullers);
 	initGroup(boxFrustumCullers);
@@ -95,6 +101,7 @@ struct EntityGrid {
 	CullId createFrustumCullSphere(const vec4f& sphere,EntityId entity);
 	CullId updateFrustumCullSphere(CullId id,const vec4f& sphere);
 	void   removeFrustumCullSphere(CullId id);
+	vec4f  getFrustumCullSphere(CullId id);
 
 	EntityGrid();
 };
@@ -107,6 +114,11 @@ CullId EntityGrid::updateFrustumCullSphere(CullId id,const vec4f& sphere){
 }
 void   EntityGrid::removeFrustumCullSphere(CullId id){
 	//grid[0].remove(id.id&kEntityBlockIdMask);
+}
+vec4f  EntityGrid::getFrustumCullSphere(CullId id) {
+	vec4f sphere;
+	getShape(grid[0].sphereFrustumCullers,id.id,sphere);
+	return sphere;
 }
 EntityGrid::EntityGrid(){
 	//TODO
@@ -225,23 +237,20 @@ static inline void storeTransform(EntityTransformation& transformation,const vec
 	vec4f(position.x,position.y,position.z,0.f).store(transformation.translation);
 	vec4f(scale.x,scale.y,scale.z,0.f).store(transformation.scaling);
 }
-EntityId Service::create(data::SubMesh* mesh,data::Material* material,const vec3f& position,const Quaternion& rotation,const vec3f& scale){
-	auto dest = entities_->allocate();
-	EntityId result= { entities_->toId(dest) };
-	dest->cullId = entityGrid_->createFrustumCullSphere(vec4f(position.x,position.y,position.z,std::max(scale.x,std::max(scale.z,scale.y))),result).id;
-	dest->flags_occCullId = 0;
-	storeTransform(dest->transformation,position,rotation,scale);
-	dest->mesh = mesh;dest->material = material;
-	return result;
-}
 static inline SkeletalAnimation* getSkeletalAnimation(core::BufferAllocator& buffer,AnimatedEntity* entity){
 	return (SkeletalAnimation*)buffer.toPointer(entity->animationId*sizeof(SkeletalAnimation));
+}
+static inline uint32 createFrustumCuller(EntityId id,vec3f position,vec3f scale,data::Mesh* mesh,EntityGrid* grid){
+	vec4f sp = vec4f(position) + vec4f(mesh->frustumShapeOffset) * vec4f(scale);
+	vec4f ss = vec4f(mesh->frustumShapeSize) * vec4f(scale);
+	float r = std::max(ss.x,std::max(ss.y,ss.z));
+	return grid->createFrustumCullSphere(vec4f(sp.x,sp.y,sp.z,r),id).id;
 }
 EntityId Service::create(data::Mesh* mesh,data::Material* material,const vec3f& position,const Quaternion& rotation,const vec3f& scale) {
 	if(mesh->hasSkeleton()){
 		auto dest = animatedEntities_->allocate();
 		EntityId result = { animatedEntities_->toId(dest) | kAnimatedEntity };
-		dest->cullId = entityGrid_->createFrustumCullSphere(vec4f(position.x,position.y,position.z,std::max(scale.x,std::max(scale.z,scale.y))),result).id;
+		dest->cullId = createFrustumCuller(result,position,scale,mesh,entityGrid_);
 		dest->flags_occCullId = 0;
 		auto anim = ALLOCATOR_NEW(&skeletonAnimations_,SkeletalAnimation) (result,mesh);
 		dest->animationId = skeletonAnimations_.toOffset(anim)/sizeof(SkeletalAnimation);
@@ -249,7 +258,15 @@ EntityId Service::create(data::Mesh* mesh,data::Material* material,const vec3f& 
 		dest->mesh = mesh->submesh(0);
 		dest->material = material;
 		return result;
-	} else return create(mesh->submesh(0),material,position,rotation,scale);
+	} else {
+		auto dest = entities_->allocate();
+		EntityId result= { entities_->toId(dest) };
+		dest->cullId = createFrustumCuller(result,position,scale,mesh,entityGrid_);
+		dest->flags_occCullId = 0;
+		storeTransform(dest->transformation,position,rotation,scale);
+		dest->mesh = mesh->submesh(0);dest->material = material;
+		return result;
+	}//return create(mesh->submesh(0),material,position,rotation,scale);
 }
 void Service::addAnimation(EntityId id,data::animation::Animation* animation,int count,float t) {
 	assert((id.id & kAnimatedEntity)!=0);
@@ -301,11 +318,16 @@ void Service::spawnFrustumCullingTasks(::rendering::frustumCulling::Frustum* fru
 	if(cell->totalSphereCount_ > 0) cullSpheres(&culler,cell);
 	if(cell->totalBoxCount_ > 0)    cullAABBs(&culler,cell);
 }
-static inline void getMatrices(EntityTransformation& transformation,mat44f& world){
+static inline void getMatrices(const EntityTransformation& transformation,mat44f& world){
 	Quaternion rotation(vec4f::load(transformation.rotation));
 	vec3f translation(transformation.translation[0],transformation.translation[1],transformation.translation[2]);
 	vec3f scaling(transformation.scaling[0],transformation.scaling[1],transformation.scaling[2]);
 	world = mat44f::translateRotateScale(translation,rotation,scaling);
+}
+static void drawFrustumShape(EntityGrid* grid,uint32 id){
+	CullId cullId = { id };
+	auto sphere = grid->getFrustumCullSphere(cullId);
+	services::debugRendering()->sphere(mat44f::identity(),sphere.xyz(),sphere.w,vec4f(0.f,0.f,1.f,1.f));
 }
 void Service::render(events::Draw& ev){
 	using namespace core::bufferArray;
@@ -319,7 +341,7 @@ void Service::render(events::Draw& ev){
 				ev.meshRenderer->draw(ev,entity->mesh,entity->material);
 				drawnEntities++;
 
-				services::debugRendering()->sphere(ev.entityGlobalTransformation,vec3f(0,0,0),1.0f,vec4f(0,0,1,1));
+				drawFrustumShape(entityGrid_,entity->cullId);
 			}
 		}
 		for(VisibleAnimatedEntity* ent = begin<VisibleAnimatedEntity>(visibleAnimatedEntities_[i]),*entend = end<VisibleAnimatedEntity>(visibleAnimatedEntities_[i]);
@@ -330,7 +352,8 @@ void Service::render(events::Draw& ev){
 				auto anim = getSkeletalAnimation(skeletonAnimations_,entity);
 				ev.meshRenderer->draw(ev,entity->mesh,entity->material,anim->transformations,anim->nodeCount);
 				drawnEntities++;
-				services::debugRendering()->sphere(ev.entityGlobalTransformation,vec3f(0,0,0),1.0f,vec4f(0,0,1,1));
+				
+				drawFrustumShape(entityGrid_,entity->cullId);
 			}
 		}
 	}

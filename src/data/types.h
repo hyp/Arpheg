@@ -155,6 +155,7 @@ namespace data {
 		typedef uint16 SkeletonJointId;
 		enum { kMaxSkeletonNodes = 0xFFFF };
 		enum { kMaxBones = 128 };
+		enum { FrustumCullSphere = 0x1,FrustumCullBox = 0x2,OcclusionCullBox = 0x4 };
 
 		explicit Mesh(SubMesh* singleSubMesh);
 		Mesh(SubMesh** submeshes,size_t count);
@@ -173,6 +174,9 @@ namespace data {
 		uint32 submeshCount_;
 		uint32 boneCount_;
 		SubmeshArray submeshes_;
+		vec3f  frustumShapeOffset;
+		uint32 cullflags;
+		vec3f  frustumShapeSize;
 
 		SkeletonJointId* skeletonHierarchy_;
 		Transformation3D* skeletonLocalTransforms_;
