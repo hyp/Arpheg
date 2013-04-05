@@ -207,8 +207,8 @@ int main(){
 		dmr.bind(camera);
 		dmr.bind(staticMeshPipeline,program);
 		scene::events::Draw ev; ev.meshRenderer = &dmr;
-		rendering::frustumCulling::Frustum f(camera);
-		services::sceneRendering()->spawnFrustumCullingTasks(&f,1);
+		services::sceneRendering()->setActiveCameras(&camera,1);
+		services::sceneRendering()->spawnFrustumCullingTasks();
 		profAnim.start();
 		services::sceneRendering()->spawnAnimationTasks();
 		profAnim.end();

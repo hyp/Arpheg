@@ -131,7 +131,8 @@ enum {
 
 	kNormalEntity = 0,
 	kAnimatedEntity = 0x1000000,
-	kCustomEntity = 0x2000000,
+	kCustomEntity   = 0x2000000,
+	kLightEntity    = 0x3000000,
 
 	flagHasFrustumCuller = 1,
 };
@@ -199,6 +200,7 @@ Service::Service(core::Allocator* alloc) :
 	entities_ = ALLOCATOR_NEW(alloc,EntityPool<Entity>) (1024*32,allocator());
 	animatedEntities_ = ALLOCATOR_NEW(alloc,EntityPool<AnimatedEntity>) (1024*2,allocator());
 	customEntities_ = ALLOCATOR_NEW(alloc,EntityPool<CustomEntity>) (1024*2,allocator());
+	lights_ = ALLOCATOR_NEW(alloc,EntityPool<LightEntity>) (1024*2,allocator());
 
 	visibleEntities_ = (core::BufferAllocator*)alloc->allocate(sizeof(core::BufferAllocator)*services::tasking()->threadCount(),alignof(core::BufferAllocator));
 	visibleAnimatedEntities_ = (core::BufferAllocator*)alloc->allocate(sizeof(core::BufferAllocator)*services::tasking()->threadCount(),alignof(core::BufferAllocator));
@@ -209,6 +211,7 @@ Service::~Service() {
 	entities_->~EntityPool();
 	animatedEntities_->~EntityPool();
 	customEntities_->~EntityPool();
+	lights_->~EntityPool();
 
 	if(visibleEntitiesInited){
 		for(size_t i = 0;i< services::tasking()->threadCount();++i){
@@ -218,6 +221,7 @@ Service::~Service() {
 	}
 }
 void Service::servicePreStep() {
+	activeCameras = 0;
 	if(!visibleEntitiesInited){
 		for(size_t i = 0;i< services::tasking()->threadCount();++i){
 			new(visibleEntities_ + i) core::BufferAllocator(sizeof(VisibleEntity)*1024,allocator(),core::BufferAllocator::GrowOnOverflow);
@@ -288,32 +292,65 @@ void Service::update(EntityId id,const vec3f& position,bool updatePosition,const
 	//TODO
 }
 
+EntityId Service::createLight(const ::rendering::Light& light,uint32 flags){
+	auto dest = lights_->allocate();
+	EntityId result= { lights_->toId(dest) | kLightEntity };
+	if(light.isPoint()){
+		dest->typeflags = flags | LightEntity::Point;
+		dest->cullId = entityGrid_->createFrustumCullSphere(light.sphere(),result).id;
+	} else {
+		dest->typeflags = flags | LightEntity::Directional;
+		dest->cullId = 0;
+	}
+	dest->light = light;
+	return result;
+}
+
 void Service::remove(EntityId id){
 	//TODO
 	entities_->free(entities_->toPtr(id.id&kEntityPtrMask));
 }
 
-
+void Service::setActiveCameras(::rendering::Camera* cameras,size_t count) {
+	assert(count < kMaxActiveCameras);
+	activeCameras = (uint32)std::max(count,size_t(kMaxActiveCameras));
+	for(uint32 i = 0;i < activeCameras;++i){
+		this->cameras[i] = cameras[i];
+	}
+}
 void Service::markVisibleEntity(const EntityGridCell* cell,FrustumMask mask,EntityId id) {
 	auto type = id.id & (~kEntityPtrMask);
-	if(type == 0){
+	switch(type){
+	case 0: {
 		auto entity = (VisibleEntity*)visibleEntities_[services::tasking()->threadId()].allocate(sizeof(VisibleEntity));
 		entity->mask = mask;
 		entity->entity = entities_->toPtr(id.id&kEntityPtrMask);
-	} else if(type == kAnimatedEntity){
+		} break;
+	case kAnimatedEntity: {
 		auto entity = (VisibleAnimatedEntity*)visibleAnimatedEntities_[services::tasking()->threadId()].allocate(sizeof(VisibleAnimatedEntity));
 		entity->mask = mask;
 		entity->entity = animatedEntities_->toPtr(id.id&kEntityPtrMask);
-	} else if(type == kCustomEntity){
+		} break;
+	case kCustomEntity: {
+						} break;
+	case kLightEntity: {
+		//Lights are filtered separately.
 
+					   }break;
 	}
 }
-void Service::spawnFrustumCullingTasks(::rendering::frustumCulling::Frustum* frustums,size_t count) {
-	assert(frustums && count);
+void Service::spawnLightFrustumCullingTasks() {
+	assert(activeCameras);
+}
+void Service::spawnFrustumCullingTasks() {
+	assert(activeCameras);
 
 	using namespace ::rendering::frustumCulling;
 	Culler culler(this);
-	for(size_t i = 0;i<count;++i) culler.addFrustum(frustums[i]);
+	for(uint32 i = 0; i< activeCameras;++i){
+		culler.addFrustum(Frustum(cameras[i]));
+	}
+
 	auto cell = entityGrid_->grid;
 	if(cell->totalSphereCount_ > 0) cullSpheres(&culler,cell);
 	if(cell->totalBoxCount_ > 0)    cullAABBs(&culler,cell);

@@ -17,10 +17,10 @@ namespace rendering {
 	}
 	void Light::makePoint(vec3f position,vec3f diffuse,vec3f specular,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation){
 		assert(radius > 0.0f);
-		parameterStorage_[0] = vec4f(position.x,position.y,position.z,ambient.x);
+		parameterStorage_[0] = vec4f(position.x,position.y,position.z,radius);
 		parameterStorage_[1] = vec4f(diffuse.x,diffuse.y,diffuse.z,0.0f);
 		parameterStorage_[2] = vec4f(specular.x,specular.y,specular.z,0.0f);
-		parameterStorage_[3] = vec4f(constantAttenuation,linearAttenuation,quadraticAttenuation,radius);
+		parameterStorage_[3] = vec4f(constantAttenuation,linearAttenuation,quadraticAttenuation,ambient.x);
 	}
 
 namespace blending {

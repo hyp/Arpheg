@@ -53,7 +53,15 @@ namespace rendering {
 		void makePoint      (vec3f position,vec3f diffuse,vec3f specular,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation);
 		//TODO void makeSpotLight  ();
 		
+		inline bool isPoint() const;
+		inline bool isSpotLight() const;
+		inline float radius() const;
+		inline vec4f sphere() const;
 	};
+	inline bool  Light::isPoint() const { return parameterStorage_[0].w > 0.f; }
+	inline bool  Light::isSpotLight() const { return parameterStorage_[1].w > 0.f; }
+	inline float Light::radius() const { return parameterStorage_[0].w; }
+	inline vec4f Light::sphere() const { return parameterStorage_[0]; }
 
 	namespace topology {
 		enum Primitive {

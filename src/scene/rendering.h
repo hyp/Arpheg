@@ -110,6 +110,7 @@ namespace rendering {
 		EntityPool<Entity>*  entities_;
 		EntityPool<AnimatedEntity>* animatedEntities_;
 		EntityPool<CustomEntity>*   customEntities_;
+		EntityPool<LightEntity>* lights_;
 		
 		core::BufferAllocator* visibleEntities_;
 		core::BufferAllocator* visibleAnimatedEntities_;
@@ -123,18 +124,28 @@ namespace rendering {
 		EntityId create(data::Mesh* mesh,data::Material* material,const vec3f& position,const Quaternion& rotation,const vec3f& scale);
 		void addAnimation(EntityId id,data::animation::Animation* animation,int count = 0,float t = 0.f);
 		void removeAnimation(EntityId id,data::animation::Animation* animation);
-		
+
+		EntityId createLight(const ::rendering::Light& light,uint32 flags = 0);
+
 		void update(EntityId id,const vec3f& position,bool updatePosition,const Quaternion& rotation,bool updateRotation,const vec3f& scale,bool updateScale);
 		void remove(EntityId id);
 
 		void markVisibleEntity(const EntityGridCell* cell,FrustumMask mask,EntityId id);
-		void spawnFrustumCullingTasks(::rendering::frustumCulling::Frustum* frustums,size_t count);
+
+		void setActiveCameras(::rendering::Camera* cameras,size_t count);
+		//Tasks
+		void spawnLightFrustumCullingTasks();
+		void spawnFrustumCullingTasks();
 		void spawnAnimationTasks();
+
 		void render(events::Draw& ev);
 		inline size_t renderedEntityCount() const;
 	private:
 		bool visibleEntitiesInited;
 		size_t drawnEntities;
+		enum { kMaxActiveCameras = 4 };
+		uint32 activeCameras;
+		::rendering::Camera cameras[kMaxActiveCameras];
 	};
 	inline size_t Service::renderedEntityCount() const { return drawnEntities; }
 } }
