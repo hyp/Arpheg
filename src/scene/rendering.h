@@ -53,6 +53,13 @@ namespace rendering {
 		data::Material* material;
 	} STRUCT_PREALIGN(16);
 
+	STRUCT_PREALIGN(16) struct LightEntity {
+		enum { Directional,Point,Spot, kCastsShadow = 0x100 };
+		uint32 typeflags;
+		uint32 cullId;
+		::rendering::Light light;
+	} STRUCT_PREALIGN(16);
+
 	//The Entity Grid is a grid used to cull the whole scene.
 	struct EntityGridCell {
         enum { kMaxBlocks = 16 };
