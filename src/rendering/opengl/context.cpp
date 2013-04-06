@@ -1,3 +1,4 @@
+#include <string.h>
 #include "../../core/assert.h"
 #include "../../core/bufferStringStream.h"
 #include "../../services.h"
@@ -5,7 +6,6 @@
 #include "context.h"
 
 #if defined(ARPHEG_PLATFORM_X11)
-	#include <string.h>
 	#include "../../application/x11window.h"
 #endif
 
@@ -15,9 +15,90 @@ T enforce(T value, const char* const error = "Error!") {
     return value;
 }
 
-
 namespace rendering {
 namespace opengl {
+
+static bool isExtensionSupported(const char *extList, const char *extension) {
+	const char *start;
+	const char *where, *terminator;
+ 
+	/* Extension names should not have spaces. */
+	where = strchr(extension, ' ');
+	if ( where || *extension == '\0' )
+	return false;
+ 
+	/* It takes a bit of care to be fool-proof about parsing the
+		OpenGL extensions string. Don't be fooled by sub-strings,
+		etc. */
+	for ( start = extList; ; ) {
+	where = strstr( start, extension );
+ 
+	if ( !where )
+		break;
+ 
+	terminator = where + strlen( extension );
+ 
+	if ( where == start || *(where - 1) == ' ' )
+		if ( *terminator == ' ' || *terminator == '\0' )
+		return true;
+ 
+	start = terminator;
+	}
+ 
+	return false;
+}
+
+#ifndef ARPHEG_RENDERING_GLES
+	//Debug output
+	static const char* glDebugSourceStr(GLenum src){
+		switch(src){
+		case GL_DEBUG_SOURCE_API_ARB: return "API";
+		case GL_DEBUG_SOURCE_SHADER_COMPILER_ARB: return "Shader compiler";
+		case GL_DEBUG_SOURCE_WINDOW_SYSTEM_ARB: return "Windowing system";
+		case GL_DEBUG_SOURCE_THIRD_PARTY_ARB: return "Third party";         
+		case GL_DEBUG_SOURCE_APPLICATION_ARB: return "App";
+		}
+		return "";
+	}
+	static const char* glDebugTypeStr(GLenum type){
+		switch(type){
+		case GL_DEBUG_TYPE_ERROR_ARB: return "Error";
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB: return "Deprecated behavior";
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB: return "Undefined behavior";
+		case GL_DEBUG_TYPE_PERFORMANCE_ARB: return "Perfomance warning";
+		case GL_DEBUG_TYPE_PORTABILITY_ARB: return "Portability warning";
+		case GL_DEBUG_TYPE_OTHER_ARB: return "Other";
+		}
+		return "";
+	}
+	static void  debugCallback(GLenum source,GLenum type,GLuint id,GLenum severity,GLsizei length,const GLchar* message,GLvoid* userParam){
+		using namespace core::bufferStringStream;
+		Formatter fmt;
+		printf(fmt.allocator,"GL DEBUG - source '%s' type '%s' severity '%s' message '%s'",
+			glDebugSourceStr(source),
+			glDebugTypeStr(type),
+			severity == GL_DEBUG_SEVERITY_HIGH_ARB? "high" : severity == GL_DEBUG_SEVERITY_MEDIUM_ARB? "med" : "low",
+			(const char*)message);
+
+		if(type == GL_DEBUG_TYPE_ERROR_ARB)
+			services::logging()->error(asCString(fmt.allocator));
+		else services::logging()->warning(asCString(fmt.allocator));
+	}
+	static void initDebugOutput(Context* context){
+		if(context->extensionSupported(extensions::ARB_debug_output)){
+			auto glDebugMessageCallbackARB = (PFNGLDEBUGMESSAGECALLBACKARBPROC)context->getProcAddress("glDebugMessageCallbackARB");
+			if(glDebugMessageCallbackARB){
+				glDebugMessageCallbackARB((GLDEBUGPROCARB)&debugCallback,(const GLvoid*)context);
+			}
+		}
+	}
+#endif
+
+static void initContext(Context* context){
+#ifndef ARPHEG_RENDERING_GLES
+	initDebugOutput(context);
+#endif
+}
 
 #if  defined(ARPHEG_PLATFORM_MARMALADE)
 	Context::Context() {
@@ -35,16 +116,9 @@ namespace opengl {
 	void Context::swapBuffers(bool vsync) {
 		IwGLSwapBuffers();
 	}
-	bool Context::extensionSupported(uint32 extension) {
-		if(extCheck & extension){
-			return (extSupport & extension) != 0;
-		} else {
-			//TODO
-			return false;
-		}
-	}
 #else
 
+#ifndef PLATFORM_RENDERING_GLES
 	void Context::checkApiSupport() {
 		using namespace support;
 		auto logger = services::logging();
@@ -75,6 +149,8 @@ namespace opengl {
 			apiSupport |= GL4_tesselation;
 		}
 	}
+#endif
+
 #if defined(ARPHEG_PLATFORM_WIN32)
 	Context::Context() {
 		auto target = services::application()->mainWindow();
@@ -116,11 +192,16 @@ namespace opengl {
 		const unsigned char* versionString = enforce(glGetString(GL_VERSION));
 		int major = (int) (versionString[0] - '0'), minor = (int) (versionString[2] - '0');
 		version = major * 10 + minor;
+#ifndef NDEBUG
+		bool useDebug = true;
+#else
+		bool useDebug = false;
+#endif
 		if (version >= 30) {
 			int attribs[] = {
 				WGL_CONTEXT_MAJOR_VERSION_ARB, major,
 				WGL_CONTEXT_MINOR_VERSION_ARB, minor,
-				WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
+				WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB | (useDebug? WGL_CONTEXT_DEBUG_BIT_ARB : 0),
 				WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB, 0
 			};
 			PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC) enforce(wglGetProcAddress("wglCreateContextAttribsARB"), "Failed to load wglCreateContextAttribsARB!");
@@ -140,6 +221,7 @@ namespace opengl {
 		version_ = vec2i(major,minor);
 		vsync_ = false;
 		checkApiSupport();
+		initContext(this);
 	}
 	Context::~Context() {
 		wglMakeCurrent(0, 0);
@@ -160,42 +242,16 @@ namespace opengl {
 		}
 		::SwapBuffers((HDC)data[0]);
 	}
+	void* Context::getProcAddress(const char* name) {
+		return wglGetProcAddress(name);
+	}
 #elif defined(ARPHEG_PLATFORM_X11)
 
-static bool isExtensionSupported(const char *extList, const char *extension) {
-  const char *start;
-  const char *where, *terminator;
- 
-  /* Extension names should not have spaces. */
-  where = strchr(extension, ' ');
-  if ( where || *extension == '\0' )
-    return false;
- 
-  /* It takes a bit of care to be fool-proof about parsing the
-     OpenGL extensions string. Don't be fooled by sub-strings,
-     etc. */
-  for ( start = extList; ; ) {
-    where = strstr( start, extension );
- 
-    if ( !where )
-      break;
- 
-    terminator = where + strlen( extension );
- 
-    if ( where == start || *(where - 1) == ' ' )
-      if ( *terminator == ' ' || *terminator == '\0' )
-        return true;
- 
-    start = terminator;
-  }
- 
-  return false;
-}
-static bool ctxErrorOccurred = false;
-static int ctxErrorHandler( Display *dpy, XErrorEvent *ev ) {
-    ctxErrorOccurred = true;
-    return 0;
-}
+	static bool ctxErrorOccurred = false;
+	static int ctxErrorHandler( Display *dpy, XErrorEvent *ev ) {
+		ctxErrorOccurred = true;
+		return 0;
+	}
 
 	Context::Context() {
 		auto target = services::application()->mainWindow();
@@ -229,11 +285,16 @@ static int ctxErrorHandler( Display *dpy, XErrorEvent *ev ) {
 			ctx = glXCreateNewContext( data->display, data->bestFbc, GLX_RGBA_TYPE, 0, True );
 		}
 		else {
+#ifndef NDEBUG
+			bool useDebug = true;
+#else
+			bool useDebug = false;
+#endif
 			int context_attribs[] =
 			{
 			GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
 			GLX_CONTEXT_MINOR_VERSION_ARB, 0,
-			GLX_CONTEXT_FLAGS_ARB        , GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
+			GLX_CONTEXT_FLAGS_ARB        , GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB | (useDebug? GLX_CONTEXT_DEBUG_BIT_ARB : 0),
 			None
 			};
 			ctx = glXCreateContextAttribsARB( data->display, data->bestFbc, 0,True, context_attribs );
@@ -285,6 +346,7 @@ static int ctxErrorHandler( Display *dpy, XErrorEvent *ev ) {
 		//version_ = vec2i(major,minor);
 		vsync_ = false;
 		checkApiSupport();
+		initContext(this);
 	}
 	Context::~Context() {
 		auto data = (application::X11Window*)services::application()->mainWindow()->handle();
@@ -305,20 +367,50 @@ static int ctxErrorHandler( Display *dpy, XErrorEvent *ev ) {
 		auto data = (application::X11Window*)services::application()->mainWindow()->handle();
 		glXSwapBuffers ( data->display, data->win );
 	}
+	void* Context::getProcAddress(const char* name) {
+		return glXGetProcAddress((const GLubyte*)name);
+	}
 #endif
-
 
 	vec2i Context::frameBufferSize() {
 		return services::application()->mainWindow()->size();
 	}
-	bool Context::extensionSupported(uint32 extension) {
-		if(extCheck & extension){
-			return (extSupport & extension) != 0;
-		} else {
-			//TODO
-			return false;
-		}
+
+
+#endif
+
+static const char* extensionToString(uint32 id){
+	using namespace extensions;
+#ifdef PLATFORM_RENDERING_GLES
+	switch(id) {
+	case OES_texture_npot: return "GL_OES_texture_npot";
+	case OES_element_index_uint: return "GL_OES_element_index_uint";
+	}
+#else
+	switch(id) {
+	case ARB_debug_output: return "GL_ARB_debug_output";
 	}
 #endif
+	assert(false && "Invalid extension");
+	return nullptr;
+}
+bool Context::extensionSupported(uint32 extension) {
+	if(extCheck & extension){
+		return (extSupport & extension) != 0;
+	} else {
+		extCheck |= extension;
+		auto ext = glGetString(GL_EXTENSIONS);
+
+		if( isExtensionSupported((const char*)ext,extensionToString(extension)) ){
+			core::bufferStringStream::Formatter fmt;
+			core::bufferStringStream::printf(fmt.allocator,"GL extension '%s' is supported!",extensionToString(extension));
+			services::logging()->information(core::bufferStringStream::asCString(fmt.allocator));
+			extSupport |= extension;
+			return true;
+		}
+		return false;
+	}
+}
+
 
 } }

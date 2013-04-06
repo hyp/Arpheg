@@ -11,6 +11,10 @@ namespace extensions {
 		OES_texture_npot = 1,
 		OES_element_index_uint = 2,
 	};
+#else
+	enum {
+		ARB_debug_output = 1,
+	};
 #endif
 };
 namespace support {
@@ -35,6 +39,7 @@ public:
 	
 	void swapBuffers(bool vsync = false);
 	bool extensionSupported(uint32 extension);
+	void* getProcAddress(const char* str);
 
 	//API support
 	inline bool geometryShadersSupported() const;

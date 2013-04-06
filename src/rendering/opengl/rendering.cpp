@@ -21,6 +21,8 @@ namespace rendering {
 	};
 #endif
 
+
+
 	Service::Service() : 
 #ifndef ARPHEG_RENDERING_GL_VAO
 		vaoEmulationBuffer(2048,nullptr,core::BufferGrowOnOverflow),
@@ -48,6 +50,8 @@ namespace rendering {
 		defaultSampler.maxAnisotropy = 0;defaultSampler.mipLodBias = 0.0f;
 		samplerEmulationDefault = create(defaultSampler).id;
 		for(uint32 i = 0;i < kMaxTextureSlots;i++) samplerEmulationSlots[i] = samplerEmulationDefault;
+
+
 	}
 	Service::~Service() {
 	}
