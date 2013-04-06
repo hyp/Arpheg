@@ -14,6 +14,7 @@ namespace extensions {
 #else
 	enum {
 		ARB_debug_output = 1,
+		AMD_pinned_memory = 2,
 	};
 #endif
 };

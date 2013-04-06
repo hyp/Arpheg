@@ -389,6 +389,7 @@ static const char* extensionToString(uint32 id){
 #else
 	switch(id) {
 	case ARB_debug_output: return "GL_ARB_debug_output";
+	case AMD_pinned_memory: return "GL_AMD_pinned_memory";
 	}
 #endif
 	assert(false && "Invalid extension");
