@@ -119,11 +119,16 @@ namespace rendering {
 		else if(id == core::TypeDescriptor::TUint16) return GL_UNSIGNED_SHORT;
 		else if(id == core::TypeDescriptor::THalf) return GL_HALF_FLOAT;
 		else if(id == core::TypeDescriptor::TDouble) return GL_DOUBLE;
+#ifndef ARPHEG_RENDERING_GLES
+		else if(id == core::TypeDescriptor::TInt3x10_2) return GL_INT_2_10_10_10_REV;
+		else if(id == core::TypeDescriptor::TUint3x10_2) return GL_UNSIGNED_INT_2_10_10_10_REV;
+#endif
 		assert(false && "Unsupported vertex attribute type");
 		return 0;
 	}
 
 #ifndef ARPHEG_RENDERING_GL_VAO
+	//TODO fix
 	static uint32 emulatedVAOnew(core::BufferAllocator& buffer,core::TypeDescriptor* fields, uint32 count){
 		uint32 i = 0;
 		GLsizei stride = 0;

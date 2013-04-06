@@ -390,6 +390,7 @@ static const char* extensionToString(uint32 id){
 	switch(id) {
 	case ARB_debug_output: return "GL_ARB_debug_output";
 	case AMD_pinned_memory: return "GL_AMD_pinned_memory";
+	case ARB_vertex_type_2_10_10_10_rev: return "GL_ARB_vertex_type_2_10_10_10_rev";
 	}
 #endif
 	assert(false && "Invalid extension");

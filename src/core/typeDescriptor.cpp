@@ -15,6 +15,9 @@ uint32 TypeDescriptor::size() {
 	else if(id == TVoid) element = 0;
 	else if(id == TMat44Float) element = sizeof(float)*16;
 	else if(id == TMat33Float) element = sizeof(float)*9;
+	else if(id == TInt3x10_2 || id == TUint3x10_2){
+		element = 4;
+	}
 	else assert(false && "Invalid type id!");
 	return element*count;
 }

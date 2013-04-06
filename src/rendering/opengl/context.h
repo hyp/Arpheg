@@ -15,6 +15,7 @@ namespace extensions {
 	enum {
 		ARB_debug_output = 1,
 		AMD_pinned_memory = 2,
+		ARB_vertex_type_2_10_10_10_rev = 4,
 	};
 #endif
 };
