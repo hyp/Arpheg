@@ -90,8 +90,10 @@ namespace rendering {
 		void drawIndexed(uint32 offset,uint32 count,uint32 baseVertex);
 
 	public:
+		inline bool hasExtDirectStateAccess();
+
 		// State for the next draw invocation
-		uint32 currentIndexSize,currentPrimitiveTopology;
+		uint16 currentIndexSize,hasDsa_;uint32 currentPrimitiveTopology;
 		// Current program
 		uint32 currentPipeline;
 		// Vertex input state possibly used for the next draw invocation.
@@ -116,6 +118,9 @@ namespace rendering {
 		void generateMipmaps(const Texture2D* texture);
 	};
 
+	inline bool Service::hasExtDirectStateAccess() {
+		return hasDsa_!=0;
+	}
 	inline opengl::Context* Service::context() {
 		return &ctx;
 	}

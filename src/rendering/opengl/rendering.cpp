@@ -51,7 +51,12 @@ namespace rendering {
 		samplerEmulationDefault = create(defaultSampler).id;
 		for(uint32 i = 0;i < kMaxTextureSlots;i++) samplerEmulationSlots[i] = samplerEmulationDefault;
 
-
+		hasDsa_ = 0;
+#ifndef ARPHEG_RENDERING_GLES
+		if(context()->extensionSupported(opengl::extensions::EXT_direct_state_access)){
+			hasDsa_ = 1;
+		}
+#endif
 	}
 	Service::~Service() {
 	}
@@ -85,6 +90,9 @@ namespace rendering {
 		Buffer::Mapping result;
 		result.id = buffer.id;
 		result.type = type;
+#ifdef ARPHEG_RENDERING_GL_VAO
+		if(type == Buffer::Index) glBindVertexArray(0); //NB: important
+#endif
 		glBindBuffer(target, buffer.id);
 		result.data = glMapBuffer(target,GL_WRITE_ONLY);
 		return result;
@@ -460,6 +468,10 @@ namespace rendering {
 		assert(indexSize < 3);
 #endif
 		assert(indexSize == 0 || indexSize == 1 || indexSize == 2 || indexSize == 4);
+		static_assert(GL_UNSIGNED_SHORT <= 0xFFFF &&
+			GL_UNSIGNED_BYTE <= 0xFFFF &&
+			GL_UNSIGNED_INT <= 0xFFFF,"rendering::Service currentIndexSize is too small!");
+
 #ifdef ARPHEG_RENDERING_GL_VAO
 		glBindVertexArray(mesh.vao);
 		currentIndexSize = indexSize == 2? GL_UNSIGNED_SHORT : (indexSize == 1? GL_UNSIGNED_BYTE : GL_UNSIGNED_INT);
@@ -481,16 +493,16 @@ namespace rendering {
 #ifdef ARPHEG_RENDERING_GLES
 		//NB: no drawRangeElements in gles 2
 		assert(offset == 0);
-		glDrawElements(currentPrimitiveTopology,count,currentIndexSize,nullptr);
+		glDrawElements(currentPrimitiveTopology,count,GLenum(currentIndexSize),nullptr);
 #else
-		glDrawElements(currentPrimitiveTopology,count,currentIndexSize,(const void*)offset);
+		glDrawElements(currentPrimitiveTopology,count,GLenum(currentIndexSize),(const void*)offset);
 #endif
 	}
 	void Service::drawIndexed(uint32 offset,uint32 count,uint32 baseVertex) {
 #ifdef ARPHEG_RENDERING_GLES
 		assert(false && "Unsupported!");
 #else
-		glDrawElementsBaseVertex(currentPrimitiveTopology,count,currentIndexSize,(const void*)offset,baseVertex);
+		glDrawElementsBaseVertex(currentPrimitiveTopology,count,GLenum(currentIndexSize),(const void*)offset,baseVertex);
 #endif
 	}
 	

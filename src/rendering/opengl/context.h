@@ -8,14 +8,15 @@ namespace opengl {
 namespace extensions {
 #ifdef PLATFORM_RENDERING_GLES
 	enum {
-		OES_texture_npot = 1,
-		OES_element_index_uint = 2,
+		OES_texture_npot = 0x1,
+		OES_element_index_uint = 0x2,
 	};
 #else
 	enum {
-		ARB_debug_output = 1,
-		AMD_pinned_memory = 2,
-		ARB_vertex_type_2_10_10_10_rev = 4,
+		ARB_debug_output = 0x1,
+		AMD_pinned_memory = 0x2,
+		ARB_vertex_type_2_10_10_10_rev = 0x4,
+		EXT_direct_state_access = 0x8,
 	};
 #endif
 };

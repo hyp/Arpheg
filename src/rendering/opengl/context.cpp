@@ -391,6 +391,7 @@ static const char* extensionToString(uint32 id){
 	case ARB_debug_output: return "GL_ARB_debug_output";
 	case AMD_pinned_memory: return "GL_AMD_pinned_memory";
 	case ARB_vertex_type_2_10_10_10_rev: return "GL_ARB_vertex_type_2_10_10_10_rev";
+	case EXT_direct_state_access: return "GL_EXT_direct_state_access";
 	}
 #endif
 	assert(false && "Invalid extension");
@@ -401,9 +402,22 @@ bool Context::extensionSupported(uint32 extension) {
 		return (extSupport & extension) != 0;
 	} else {
 		extCheck |= extension;
+#ifdef PLATFORM_RENDERING_GLES
 		auto ext = glGetString(GL_EXTENSIONS);
+		bool support = isExtensionSupported((const char*)ext,extensionToString(extension));
+#else
+		int max = 0;
+		glGetIntegerv(GL_NUM_EXTENSIONS, &max);
+		bool support = false;
+		auto extstr = extensionToString(extension);
+		for(int i = 0; i < max; i++){
+			if(isExtensionSupported((const char*)glGetStringi(GL_EXTENSIONS, i),extstr)){
+				support = true; break;
+			}
+		}
+#endif
 
-		if( isExtensionSupported((const char*)ext,extensionToString(extension)) ){
+		if( support ){
 			core::bufferStringStream::Formatter fmt;
 			core::bufferStringStream::printf(fmt.allocator,"GL extension '%s' is supported!",extensionToString(extension));
 			services::logging()->information(core::bufferStringStream::asCString(fmt.allocator));
