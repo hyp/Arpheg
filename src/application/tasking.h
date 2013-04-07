@@ -63,6 +63,8 @@ public:
 	uint32   threadId() const;
 	//Thread context is available for main and worker threads
 	Context& threadContext() const;
+	//Can the current thread be used for rendering?
+	inline bool isRenderingThread() const;
 
 	Task* get();
 public:
@@ -85,5 +87,6 @@ public:
 };
 inline uint32 Service::workerCount() const { return workerCount_; }
 inline uint32 Service::threadCount() const { return threadCount_; }
+inline bool Service::isRenderingThread() const { return threadId() == 0; }
 
 } }

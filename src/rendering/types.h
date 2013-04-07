@@ -143,6 +143,7 @@ namespace rendering {
 			RG_88,
 			RGB_888,
 			RGBA_8888,
+			UINT_R_16,
 			UINT_RG_1616,
 			UINT_RGB_161616,
 			UINT_RGBA_16161616,

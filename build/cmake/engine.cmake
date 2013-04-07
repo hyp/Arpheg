@@ -42,6 +42,9 @@ set(ARPHEG_ENGINE_FILES
 	rendering/softwareOcclusion/softwareOcclusion.cpp
 	rendering/frustumCulling.cpp
 	rendering/animation.cpp
+	rendering/dynamicBuffer.cpp
+	rendering/lighting/tiled.cpp
+	rendering/lighting/lighting.cpp
 
 	data/data.cpp
 	data/3d.cpp
