@@ -106,7 +106,7 @@ static inline Mask intersect(const Frustum& frustum,const vec4f& aabbMin,const v
 		if(frustum.planes[i].y >= 0.f) p.y = aabbMax.y;
 		if(frustum.planes[i].z >= 0.f) p.z = aabbMax.z;
 		
-		if((frustum.planes[i].dot3(p) + frustum.planes[i].w) < 0.0f) return 0;
+		if(frustum.planes[i].dot3(p)  < - frustum.planes[i].w) return 0;
 	}
 	return 0xFFffFFff;
 }
@@ -123,34 +123,18 @@ static inline Mask intersect(const FrustumSoA& frustum,const vec4f& aabbMin,cons
 	 __m128 zero = vec4f::zero().xyzw;
 
 	 //P vertices for 6 planes.
-	 __m128 p04x,p04y,p04z,p46x,p46y,p46z,mask;
-	 
-	 mask =_mm_cmpge_ps(frustum.planes0_4_x.xyzw,zero);
-	 p04x = _mm_or_ps(_mm_andnot_ps(mask,aabbMin_xxxx),_mm_and_ps(mask,aabbMax_xxxx));//NB: Blend instruction(SSE4) can be utilized instead.
-	 mask =_mm_cmpge_ps(frustum.planes0_4_y.xyzw,zero);
-	 p04y = _mm_or_ps(_mm_andnot_ps(mask,aabbMin_yyyy),_mm_and_ps(mask,aabbMax_yyyy));
-	 mask =_mm_cmpge_ps(frustum.planes0_4_z.xyzw,zero);
-	 p04z = _mm_or_ps(_mm_andnot_ps(mask,aabbMin_zzzz),_mm_and_ps(mask,aabbMax_zzzz));
-	 
-	 __m128 dotA_0123 = vec4f::fma(p04x,frustum.planes0_4_x.xyzw,frustum.planes0_4_w.xyzw);
-	 dotA_0123 = vec4f::fma(p04y,frustum.planes0_4_y.xyzw,dotA_0123);
-	 dotA_0123 = vec4f::fma(p04z,frustum.planes0_4_z.xyzw,dotA_0123);
+	 __m128 dotA_0123 = _mm_max_ps(_mm_mul_ps(frustum.planes0_4_x.xyzw,aabbMin_xxxx),_mm_mul_ps(frustum.planes0_4_x.xyzw,aabbMax_xxxx));
+	 dotA_0123 = _mm_add_ps( dotA_0123, _mm_max_ps(_mm_mul_ps(frustum.planes0_4_y.xyzw,aabbMin_yyyy),_mm_mul_ps(frustum.planes0_4_y.xyzw,aabbMax_yyyy)) );
+	 dotA_0123 = _mm_add_ps( dotA_0123, _mm_max_ps(_mm_mul_ps(frustum.planes0_4_z.xyzw,aabbMin_zzzz),_mm_mul_ps(frustum.planes0_4_z.xyzw,aabbMax_zzzz)) );
+	 dotA_0123 = _mm_cmplt_ps(dotA_0123, _mm_sub_ps(zero,frustum.planes0_4_w.xyzw) );
 
 	 //NB: this is a waste of half register.
-	 mask =_mm_cmpge_ps(frustum.planes4_6_x.xyzw,zero);
-	 p46x = _mm_or_ps(_mm_andnot_ps(mask,aabbMin_xxxx),_mm_and_ps(mask,aabbMax_xxxx));
-	 mask =_mm_cmpge_ps(frustum.planes4_6_y.xyzw,zero);
-	 p46y = _mm_or_ps(_mm_andnot_ps(mask,aabbMin_yyyy),_mm_and_ps(mask,aabbMax_yyyy));
-	 mask =_mm_cmpge_ps(frustum.planes4_6_z.xyzw,zero);
-	 p46z = _mm_or_ps(_mm_andnot_ps(mask,aabbMin_zzzz),_mm_and_ps(mask,aabbMax_zzzz));
+	 __m128 dotA_45 = _mm_max_ps(_mm_mul_ps(frustum.planes4_6_x.xyzw,aabbMin_xxxx),_mm_mul_ps(frustum.planes4_6_x.xyzw,aabbMax_xxxx));
+	 dotA_45 = _mm_add_ps( dotA_0123, _mm_max_ps(_mm_mul_ps(frustum.planes4_6_y.xyzw,aabbMin_yyyy),_mm_mul_ps(frustum.planes4_6_y.xyzw,aabbMax_yyyy)) );
+	 dotA_45 = _mm_add_ps( dotA_0123, _mm_max_ps(_mm_mul_ps(frustum.planes4_6_z.xyzw,aabbMin_zzzz),_mm_mul_ps(frustum.planes4_6_z.xyzw,aabbMax_zzzz)) );
 
-	 __m128 dotA_45 = vec4f::fma(p46x,frustum.planes4_6_x.xyzw,frustum.planes4_6_w.xyzw);
-	 dotA_45 = vec4f::fma(p46y,frustum.planes4_6_y.xyzw,dotA_45);
-	 dotA_45 = vec4f::fma(p46z,frustum.planes4_6_z.xyzw,dotA_45);
-
-	 //comparison mask = distance x 6 < 0 x 6
-	 dotA_0123 = _mm_cmplt_ps(dotA_0123, zero);
-	 dotA_45   = _mm_cmplt_ps(dotA_45, zero);
+	 //comparison mask = dot3 x 6 < - w x 6
+	 dotA_45   = _mm_cmplt_ps(dotA_45, _mm_sub_ps(zero,frustum.planes4_6_w.xyzw) );
 	 dotA_0123 = _mm_or_ps(dotA_0123,dotA_45);
 	 
 	 //If any masks are 0xFFFF_FFFF return false.
