@@ -100,12 +100,11 @@ static inline Mask intersect(const Frustum& frustum,const vec4f& sphere){
 
 //Use the PN vertex AABB test.
 static inline Mask intersect(const Frustum& frustum,const vec4f& aabbMin,const vec4f& aabbMax) {
-	auto p = aabbMin,n = aabbMax;
 	for(int i = 0; i < 6; i++ ) {
 		auto p = aabbMin;
 		if(frustum.planes[i].x >= 0.f) p.x = aabbMax.x;
-		if(frustum.planes[i].y >= 0.f) p.y = aabbMax.x;
-		if(frustum.planes[i].z >= 0.f) p.z = aabbMax.x;
+		if(frustum.planes[i].y >= 0.f) p.y = aabbMax.y;
+		if(frustum.planes[i].z >= 0.f) p.z = aabbMax.z;
 		
 		if((frustum.planes[i].dot3(p) + frustum.planes[i].w) < 0.0f) return 0;
 	}
