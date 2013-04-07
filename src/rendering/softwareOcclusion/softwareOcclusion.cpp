@@ -366,25 +366,20 @@ static inline void boxVerticesToScreenVertices(vec4f vertices[8],const vec4f& sc
 #ifdef ARPHEG_ARCH_X86
 	__m128 screenSpaceMul = _mm_load_ps((float*)&screenCenterMul.x);
 	__m128 screenCenterOffset = _mm_setr_ps(float(screenCenter.x),float(screenCenter.y),0,0);
-	//__m128 nearClip = _mm_set_ps1(-1.0f);
+	__m128 nearClip = _mm_setzero_ps();
 	for(uint32 i = 0;i<8;++i){
 		__m128 hv = _mm_load_ps((float*)(vertices + i));
 		
 		__m128 w  = _mm_shuffle_ps(hv,hv,_MM_SHUFFLE(3,3,3,3)); //get the w component
+		__m128 z  = _mm_shuffle_ps(hv,hv,_MM_SHUFFLE(2,2,2,2));
 		hv = _mm_div_ps(hv,w); //Project XYZW to clip space (divide by w)
-		//__m128 z  = _mm_shuffle_ps(hv,hv,_MM_SHUFFLE(2,2,2,2));
+		
 		hv = _mm_mul_ps(hv,screenSpaceMul); //XY to screen space    [-width/2,-height/2 -> width/2,height/2]
 		hv = _mm_add_ps(hv,screenCenterOffset);//XY to screen space [0,0 -> width,height]
-		//__m128 mNoNearClip = _mm_cmpge_ps(z, nearClip );
-		//w  = _mm_shuffle_ps(w,hv,_MM_SHUFFLE(2,2,0,0));//w,w,z,z
-		//Truncate conversion to screen space
-		//__m128i screenSpace = _mm_cvttps_epi32(hv);
-		//screenSpace = _mm_add_epi32(screenSpace,screenCenterOffset);//XY to screen space
-		///hv = _mm_castsi128_ps(screenSpace);
-		//hv = _mm_shuffle_ps(hv,w,_MM_SHUFFLE(0,2,1,0));//x,y,z,w
+		__m128 mNoNearClip = _mm_cmpge_ps(z, nearClip );
 
 		//Set to all-0 if near-clipped
-		//hv = _mm_and_ps(hv, mNoNearClip);
+		hv = _mm_and_ps(hv, mNoNearClip);
 
 		_mm_store_ps((float*)(vertices + i),hv);
 	}
@@ -469,6 +464,14 @@ void DepthBuffer::binTriangles4Simd(vec4f vertices[12],uint32 count) {
 	for(uint32 i =0;i<numLanes;++i){
 		//Skip triangle if the area is zero
 		if(area.lane[i] <= 0) continue;
+
+		float oneOverW[3];
+		for(int j = 0;j<3;++j){
+			oneOverW[j] = transformedPos[j].w.lane[i];
+		}
+
+		// Reject the triangle if any of its verts is behind the nearclip plane
+		if(oneOverW[0] == 0.0f || oneOverW[1] == 0.0f || oneOverW[2] == 0.0f) continue;
 
 		//Convert bounding box in terms of pixels to bounding box in terms of tiles.
 		int32 tileMinX = minX.lane[i]/tileSize_.x;//std::max(minX.lane[i]/tileSize_.x,0);
@@ -973,6 +976,9 @@ bool DepthBuffer::testTriangle2x2(const vec4f& v0,const vec4f& v1,const vec4f& v
 	vertex[0] = vec2i(int32(v0.x),int32(v0.y));
 	vertex[1] = vec2i(int32(v1.x),int32(v1.y));
 	vertex[2] = vec2i(int32(v2.x),int32(v2.y));
+
+	// Reject the triangle if any of its verts is behind the nearclip plane
+	if(v0.w == 0.0f || v1.w == 0.0f || v2.w == 0.0f) return true;
 
 	float minZ = std::min(v0.z,std::min(v1.z,v2.z));
 	VecF32 fixedDepth(minZ);
