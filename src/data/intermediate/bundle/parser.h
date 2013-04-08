@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../../../core/memory.h"
 #include "../../internal/types.h"
 #include "../../text/parser.h"
 
@@ -69,10 +70,10 @@ namespace bundle {
 	void Parser::registerSubdata(const char* id){
 		struct Factory {
 			static SubParser* make(void* p){
-				return new(p) T; //NB: T is now guaranteed to be a descendand of SubParser
+				return new(core::memory::align_forward(p,alignof(T))) T; //NB: T is now guaranteed to be a descendand of SubParser
 			}
 		};
-		registerSubdata(id,sizeof(T),&Factory::make);
+		registerSubdata(id,sizeof(T)+alignof(T),&Factory::make);
 	}
 
 } } }

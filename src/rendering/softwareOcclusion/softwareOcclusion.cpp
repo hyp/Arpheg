@@ -306,7 +306,7 @@ static uint32 calculateBoxVisibleFaceMask(vec3f cameraDir){
 	} else mask |= 2;
 	//XZ
 	if(cameraDir.y >= 0.0f){
-		mask |= 8;
+		mask |= 4;
 	} else mask |= 8;
 	//YZ
 	if(cameraDir.x >= 0.0f){
@@ -395,13 +395,12 @@ static inline void boxVerticesToScreenVertices(vec4f vertices[8],const vec4f& sc
 }
 static inline uint32 extractBoxQuads(ScreenSpaceQuad faces[6],vec4f vertices[8],uint32 aabbFrontFaceMask){
 	static uint32 indices[6] = {
-		makeBoxIndex(0,1,2,3),makeBoxIndex(4,5,6,7), //XY
-		makeBoxIndex(1,0,4,5),makeBoxIndex(2,3,7,6), //XZ
-		makeBoxIndex(0,3,7,4),makeBoxIndex(1,2,6,5)  //YZ
+		makeBoxIndex(3,2,1,0),makeBoxIndex(4,5,6,7), //XY
+		makeBoxIndex(5,4,0,1),makeBoxIndex(2,3,7,6), //XZ
+		makeBoxIndex(4,7,3,0),makeBoxIndex(1,2,6,5)  //YZ
 	};
 	uint32 faceCount = 0;
-	for(uint32 i = 0;i<6;++i){
-		//TODO: 
+	for(uint32 i = 0;i<6;++i){ 
 		if(isBoxFaceHidden(aabbFrontFaceMask,i)) continue;
 		auto index = indices[i];
 		faces[faceCount].v[0] = vertices[index&0xFF];

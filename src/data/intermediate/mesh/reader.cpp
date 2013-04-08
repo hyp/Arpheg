@@ -70,14 +70,14 @@ struct Scene;
 struct MeshImporter {
 	enum { kMaxSizeof = 256 };
 
-	vec4f vmin,vmax;
+	vec3f vmin,vmax;
 	Mesh* dest;
 	size_t vertexStride, vertexWeightOffset;
 	uint32 weightsPerVertex;
 	core::Allocator* allocator;
 	
 
-	MeshImporter() : vmin(0.f),vmax(0.f) {}
+	MeshImporter() : vmin(0.f,0.f,0.f),vmax(0.f,0.f,0.f) {}
 	inline void* allocateVertices(size_t size){
 		dest->vertices.begin = (uint8*)allocator->allocate(size*vertexStride,alignof(vec4f));
 		dest->vertices.end   = dest->vertices.begin + size*vertexStride;
@@ -141,8 +141,8 @@ struct MeshImporter {
 	}
 	inline void movePosition(float* dest,const aiVector3D& v){
 		auto vv = vec4f(v.x,v.y,v.z,0.f);
-		vmin = vec4f::min(vmin,vv);
-		vmax = vec4f::max(vmax,vv);
+		vmin = vec4f::min(vec4f(vmin.x,vmin.y,vmin.z,0.f),vv).xyz();
+		vmax = vec4f::max(vec4f(vmax.x,vmax.y,vmax.z,0.f),vv).xyz();
 		move3(dest,v);
 	}
 
@@ -202,7 +202,6 @@ struct Scene {
 	const aiScene* scene;
 	MeshImporter* importer;
 	core::Allocator* allocator;
-	vec4f vmin,vmax;
 
 	std::vector<Mesh> submeshes;
 	struct BoneNode {
@@ -425,7 +424,6 @@ void Scene::selectVertexFormat(const aiMesh* mesh){
 	bool normals   = mesh->HasNormals();
 	bool texcoords = mesh->HasTextureCoords(0);
 
-	auto storageForImporter = core::memory::align_forward(this->storageForImporter,alignof(vec4f));
 	if(normals){
 		if(texcoords) importer = new(storageForImporter) PositionNormalTexcoord2DImporter;
 		else importer = new(storageForImporter) PositionNormalImporter;
@@ -531,8 +529,8 @@ void Scene::selectFrustumBounder() {
 	auto min = importer->vmin;
 	auto max = importer->vmax;
 	auto mid = (max - min)*0.5f;
-	resultingMesh.frustumShapeOffset = (min + mid).xyz();
-	resultingMesh.frustumShapeSize   = (mid).xyz();
+	resultingMesh.frustumShapeOffset = (min + mid);
+	resultingMesh.frustumShapeSize   = (mid);
 	resultingMesh.cullflags = ::data::Mesh::FrustumCullSphere;
 }
 void Scene::importIntoOneMesh(const aiScene* scene){

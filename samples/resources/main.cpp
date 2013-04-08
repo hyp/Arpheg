@@ -103,7 +103,7 @@ int main(){
 	application::profiling::Timer profRasterizeTiles("Rasterize Tiles");
 	application::profiling::Timer profQuery("Query occlusion");
 
-	float cam = 3.f;
+	float cam = -3.f;
 	float anim = 0.f;
 
 	auto ent = services::sceneRendering()->create(foo,foo->submesh(0)->material(),vec3f(20,0,0),Quaternion::identity(),vec3f(1.0f,2.0f,1.0f));
