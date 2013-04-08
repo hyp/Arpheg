@@ -118,7 +118,7 @@ static void initContext(Context* context){
 	}
 #else
 
-#ifndef PLATFORM_RENDERING_GLES
+#ifndef ARPHEG_RENDERING_GLES
 	void Context::checkApiSupport() {
 		using namespace support;
 		auto logger = services::logging();
@@ -148,6 +148,9 @@ static void initContext(Context* context){
 		if(major >= 4){
 			apiSupport |= GL4_tesselation;
 		}
+	}
+#else
+	void Context::checkApiSupport(){
 	}
 #endif
 
@@ -381,7 +384,7 @@ static void initContext(Context* context){
 
 static const char* extensionToString(uint32 id){
 	using namespace extensions;
-#ifdef PLATFORM_RENDERING_GLES
+#ifdef ARPHEG_RENDERING_GLES
 	switch(id) {
 	case OES_texture_npot: return "GL_OES_texture_npot";
 	case OES_element_index_uint: return "GL_OES_element_index_uint";
@@ -402,7 +405,7 @@ bool Context::extensionSupported(uint32 extension) {
 		return (extSupport & extension) != 0;
 	} else {
 		extCheck |= extension;
-#ifdef PLATFORM_RENDERING_GLES
+#ifdef ARPHEG_RENDERING_GLES
 		auto ext = glGetString(GL_EXTENSIONS);
 		bool support = isExtensionSupported((const char*)ext,extensionToString(extension));
 #else

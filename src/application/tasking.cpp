@@ -44,6 +44,7 @@ wait:
 			task->openWorkItems-=1;
 		}
 		mutex.lock();
+		//TODO: PTHREAD: Avoid spurious wakeups.
 		service->workerWaitCondition_->wait(mutex);
 		mutex.unlock();
 		if(!done)

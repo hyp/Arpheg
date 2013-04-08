@@ -74,5 +74,5 @@ endforeach(i)
 if (WIN32)
 	list(APPEND ARPHEG_LIBS opengl32)
 else ()
-	list(APPEND ARPHEG_LIBS GL X11 rt) #NB: RT is for the clock
+	list(APPEND ARPHEG_LIBS GL X11 rt pthread dl) #NB: RT is for the clock
 endif()
