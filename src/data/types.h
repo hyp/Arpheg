@@ -75,6 +75,23 @@ namespace data {
 	inline uint32 Sprite::frameCount() const { return frameCount_; }
 	inline Sprite::Frame* Sprite::frames() const { return frames_; }
 
+	//A string asset
+	struct String {
+		explicit String(core::Bytes stringData);
+		explicit String(const char* string);
+
+		inline const char* string() const;
+		inline core::Bytes data() const;
+
+		bool operator ==(const String& other) const;
+		inline bool operator !=(const String& other) const;
+	private:
+		core::Bytes data_;
+	};
+	inline const char* String::string() const { return (char*)data_.begin; }
+	inline core::Bytes String::data() const { return data_; }
+	inline bool String::operator !=(const String& other) const { return !(*this == other); }
+
 #ifndef ARPHEG_DATA_NO3D
 	
 	//Material defines how a mesh is rendered

@@ -48,6 +48,7 @@ namespace data {
 		animation::Animation* animation(BundleID bundle,ID id,bool optional = false);
 		Font* font(BundleID bundle,ID id,bool optional = false);
 		Sprite* sprite(BundleID bundle,ID id,bool optional = false);
+		String* string(BundleID bundle,ID id,bool optional = false);
 
 		inline internal_::Service* impl() const;
 		core::DynamicLibrary* importLibrary();

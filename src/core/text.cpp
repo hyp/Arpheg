@@ -161,6 +161,30 @@ Bytes parseUntil(Bytes& string,char  terminator){
 	string.begin = str;
 	return line;
 }
+Bytes parseAsciiUnderscore(Bytes& string){
+	auto line = string;
+	auto str = string.begin;
+	for(;str < string.end;str++){
+		auto firstCharacter = *str;
+		if( (firstCharacter >= 'a' && firstCharacter <= 'z') || 
+			(firstCharacter >= 'A' && firstCharacter <= 'Z') || 
+			(firstCharacter == '_') ) continue;
+		break;
+	}
+	line.end = str;
+	string.begin = str;
+	return line;
+}
+void  skipSpaces(Bytes& string){
+	auto str = string.begin;
+	for(;str < string.end;str++){
+		auto firstCharacter = *str;
+		if( firstCharacter == ' ' || firstCharacter == '\t' || firstCharacter == '\v' )
+			continue;
+		break;
+	}
+	string.begin = str;
+}
 
 Tokenizer::Tokenizer(Bytes data,uint32 modes): data_(data),mode(modes) {
 }

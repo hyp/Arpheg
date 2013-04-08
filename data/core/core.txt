@@ -20,10 +20,19 @@ sampler:
 	filter: 'MinLinear', 'MagLinear'
 	addressMode = 'Repeat'
 
+shaderLibrary:
+	id = 'shaders.glslCompability'
+	path = 'shaderlib/glslCompability.glsl'
+	
+shaderLibrary:
+	id = 'shaders.constants'
+	path = 'shaderlib/constants.h'
+	
 pipeline:
 	id = 'rendering.debug.pipeline'
 	glsl.vertexAttributes: 'position', 'colour'
 	vertexShader:
+		#require core.shaders.glslCompability
 		ATTRIBUTE_IN vec3 position; ATTRIBUTE_IN vec4 colour;
 		uniform highp mat4 mvp;
 		VARYING_OUT lowp vec4 vsColour;
@@ -31,6 +40,7 @@ pipeline:
 			gl_Position = mvp*vec4(position,1); vsColour = colour;
 		}
 	pixelShader:
+		#require core.shaders.glslCompability
 		VARYING_IN lowp vec4 vsColour;
 		DEF_PIXEL_SHADER_OUT;
 		void main() { PIXEL_SHADER_OUT = vsColour; }
@@ -40,6 +50,7 @@ pipeline:
 	id = 'rendering.visualize.depthBuffer.pipeline'
 	glsl.vertexAttributes: 'position','texcoord','colour'
 	vertexShader:
+		#require core.shaders.glslCompability
 		ATTRIBUTE_IN vec2 position; ATTRIBUTE_IN vec2 texcoord; ATTRIBUTE_IN vec4 colour;
 		VARYING_OUT mediump vec2 vsTexcoord;VARYING_OUT lowp vec4 vsColour;
 		uniform highp mat4 matrix;
@@ -48,6 +59,7 @@ pipeline:
 			vsTexcoord = vec2(texcoord.x,1.0-texcoord.y); vsColour = colour;
 		}
 	pixelShader:
+		#require core.shaders.glslCompability
 		VARYING_IN mediump vec2 vsTexcoord; VARYING_IN lowp vec4 vsColour;
 		DEF_PIXEL_SHADER_OUT;
 		uniform sampler2D textures;
@@ -62,6 +74,7 @@ pipeline:
 	id = 'rendering.2d.textured.coloured.pipeline'
 	glsl.vertexAttributes: 'position','texcoord','colour'
 	vertexShader:
+		#require core.shaders.glslCompability
 		ATTRIBUTE_IN vec2 position; ATTRIBUTE_IN vec2 texcoord; ATTRIBUTE_IN vec4 colour;
 		VARYING_OUT mediump vec2 vsTexcoord;VARYING_OUT lowp vec4 vsColour;
 		uniform highp mat4 matrix;
@@ -70,6 +83,7 @@ pipeline:
 			vsTexcoord = texcoord; vsColour = colour;
 		}
 	pixelShader:
+		#require core.shaders.glslCompability
 		VARYING_IN mediump vec2  vsTexcoord; VARYING_IN lowp vec4 vsColour;
 		DEF_PIXEL_SHADER_OUT;
 		uniform sampler2D textures;
@@ -82,6 +96,7 @@ pipeline:
 	id = 'rendering.2d.coloured.pipeline'
 	glsl.vertexAttributes: 'position','colour'
 	vertexShader:
+		#require core.shaders.glslCompability
 		ATTRIBUTE_IN vec2 position; ATTRIBUTE_IN vec2 texcoord; ATTRIBUTE_IN vec4 colour;
 		VARYING_OUT lowp vec4 vsColour;
 		uniform highp mat4 matrix;
@@ -90,6 +105,7 @@ pipeline:
 			vsColour = colour;
 		}
 	pixelShader:
+		#require core.shaders.glslCompability
 		VARYING_IN lowp vec4  vsColour;
 		DEF_PIXEL_SHADER_OUT;
 		void main() {
@@ -101,6 +117,7 @@ pipeline:
 	id = 'rendering.text.pipeline'
 	glsl.vertexAttributes: 'position','texcoord','channelMask','colour'
 	vertexShader:
+		#require core.shaders.glslCompability
 		ATTRIBUTE_IN vec2 position;ATTRIBUTE_IN vec2 texcoord;ATTRIBUTE_IN vec4 channelMask; ATTRIBUTE_IN vec4 colour;
 		VARYING_OUT mediump vec2 vsTexcoord;VARYING_OUT lowp vec4 vsChannelMask;VARYING_OUT lowp vec4 vsColour;
 		uniform highp mat4 matrix;
@@ -109,6 +126,7 @@ pipeline:
 			vsTexcoord = texcoord;vsChannelMask = channelMask;vsColour = colour;
 		}
 	pixelShader:
+		#require core.shaders.glslCompability
 		VARYING_IN mediump vec2 vsTexcoord;VARYING_IN lowp vec4 vsChannelMask;VARYING_IN lowp vec4 vsColour;
 		uniform sampler2D textures;
 		DEF_PIXEL_SHADER_OUT;
@@ -122,6 +140,7 @@ pipeline:
 	id = 'rendering.text.outlined.pipeline'
 	glsl.vertexAttributes: 'position','texcoord','channelMask','colour','outlineColour'
 	vertexShader:
+		#require core.shaders.glslCompability
 		ATTRIBUTE_IN vec2 position;ATTRIBUTE_IN vec2 texcoord;ATTRIBUTE_IN vec4 channelMask; ATTRIBUTE_IN vec4 colour; ATTRIBUTE_IN vec4 outlineColour;
 		VARYING_OUT mediump vec2 vsTexcoord;VARYING_OUT lowp vec4 vsChannelMask;
 		VARYING_OUT lowp vec4 vsBorderColour; VARYING_OUT lowp vec4 vsColour;
@@ -131,6 +150,7 @@ pipeline:
 			vsTexcoord = texcoord;vsChannelMask = channelMask;vsBorderColour = outlineColour; vsColour = colour;
 		}
 	pixelShader:
+		#require core.shaders.glslCompability
 		VARYING_IN mediump vec2 vsTexcoord;VARYING_IN lowp vec4 vsChannelMask;
 		VARYING_IN lowp vec4 vsBorderColour;VARYING_IN lowp vec4 vsColour;
 		uniform sampler2D textures;
@@ -144,3 +164,15 @@ pipeline:
 			else PIXEL_SHADER_OUT = vec4(vsBorderColour.xyz,value*vsBorderColour.a);
 		}
 	
+
+shaderLibrary:
+	id = 'shaders.perlinNoise'
+	path = 'shaderlib/perlinNoise.glsl'
+	
+shaderLibrary:
+	id = 'shaders.rayBoxIntersection'
+	path = 'shaderlib/rayBoxIntersection.glsl'
+	
+shaderLibrary:
+	id = 'shaders.fog'
+	path = 'shaderlib/fog.glsl'

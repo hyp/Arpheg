@@ -12,6 +12,7 @@
 
 
 #include "../../image/reader.h"
+#include "../shader/preprocess.h"
 #include "../../shader/preprocess.h"
 #include "../../utils/path.h"
 #include "../mesh/reader.h"
@@ -305,6 +306,29 @@ void Sampler::end() {
 	parser->service->mapPointerToID(parser->bundle,obj,id);
 }
 
+class ShaderLibrary: public SubParser {
+public:
+	String id;
+	String path;
+	String source;
+
+	void set(core::Bytes id);
+	void end();
+};
+void ShaderLibrary::set(core::Bytes id){
+	if(equals(id,"id")) this->id = parser->string();
+	else if(equals(id,"path")) this->path = parser->string();
+}
+void ShaderLibrary::end(){
+	io::Data data(parser->makePath(path));
+
+	auto obj = parser->service->allocateObject<::data::String>(data.size+1);
+	memcpy(obj + 1,data.begin,data.size);
+	( (char*) (obj+1)) [data.size] = '\0';
+	new(obj) ::data::String(core::Bytes(obj+1,data.size));
+	parser->service->mapPointerToID(parser->bundle,obj,id);
+}
+
 class Pipeline: public SubParser {
 	uint32 embeddedShaderType;
 
@@ -345,7 +369,18 @@ void Pipeline::end(){
 
 	auto rendering = services::rendering();
 
-	shader::Preprocessor preprocessor(core::memory::globalAllocator());
+	::data::shader::Preprocessor preprocessor(core::memory::globalAllocator());
+	class Preprocessor : public ::data::intermediate::shader::Preprocessor  {
+	public:
+		Parser* parser;
+
+		core::Bytes require(const char* bundle,const char* id){
+			auto bid = services::data()->bundle(bundle);
+			return services::data()->string(bid,id)->data();
+		}
+	};
+	Preprocessor intermediatePreprocessor;
+	intermediatePreprocessor.parser = parser;
 
 	//Check shader paths / sources
 	rendering::Shader shaders[rendering::Shader::MaxTypes];
@@ -353,7 +388,8 @@ void Pipeline::end(){
 	for(uint32 i = 0;i<rendering::Shader::MaxTypes;++i){
 		if(!shaderPaths[i].empty()){
 			io::Data data(parser->makePath(shaderPaths[i]));
-			auto src = preprocessor.preprocess(core::Bytes(data.begin,data.size));
+			auto src = intermediatePreprocessor.preprocess(services::logging(),core::Bytes(data.begin,data.size));
+			src = preprocessor.preprocess(src);
 			shaders[shaderCount] = rendering->create(rendering::Shader::Type(i),(char*)src.begin,src.length());
 			parser->service->registerShader(shaders[shaderCount]);
 			++shaderCount;
@@ -365,7 +401,8 @@ void Pipeline::end(){
 				//Error
 				continue;
 			}
-			auto src = preprocessor.preprocess(shaderSources[i]);
+			auto src = intermediatePreprocessor.preprocess(services::logging(),shaderSources[i]);
+			src = preprocessor.preprocess(src);
 			shaders[shaderCount] = rendering->create(rendering::Shader::Type(i),(char*)src.begin,src.length());
 			parser->service->registerShader(shaders[shaderCount]);
 			++shaderCount;
@@ -557,6 +594,7 @@ Parser::Parser() :
 	currentPath_(nullptr,nullptr),bundlePath_(nullptr,nullptr) 
 {
 		registerSubdata<Mesh>        ("mesh");
+		registerSubdata<ShaderLibrary>("shaderLibrary");
 		registerSubdata<Pipeline>    ("pipeline");
 		registerSubdata<Texture>     ("texture");
 		registerSubdata<TextureArray>("textureArray");

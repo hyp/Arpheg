@@ -255,6 +255,12 @@ Sprite::Frame::Frame(float* texcoords) {
 	textureCoords[3] = normalizedUint16::make(texcoords[3]);
 }
 
+String::String(core::Bytes stringData) : data_(stringData) {}
+String::String(const char* string) : data_((void*)string,strlen(string)) {}
+bool String::operator ==(const String& other) const {
+	return memcmp(data_.begin,other.data_.begin,data_.length()) == 0;
+}
+
 BundleID Service::loadBundle(const char* filename) {
 	return impl()->loadBundle(filename,"");
 }
@@ -315,6 +321,9 @@ Font*     Service::font(BundleID bundle,ID id,bool optional){
 }
 Sprite*   Service::sprite(BundleID bundle,ID id,bool optional){
 	return (Sprite*) impl()->getResourceFromID(bundle,id,optional);
+}
+String* Service::string(BundleID bundle,ID id,bool optional) {
+	return (String*) impl()->getResourceFromID(bundle,id,optional);
 }
 
 //Direct loading of intermediate resources from the filesystem

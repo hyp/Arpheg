@@ -27,24 +27,8 @@ core::Bytes Preprocessor::preprocess(core::Bytes source){
 	Formatter defines;
 #ifndef ARPHEG_RENDERING_GLES
 	printf(defines.allocator,"#version %c%c%c core\n",string[0],string[2],string[3]);
-	printf(defines.allocator,"#define lowp\n");
-	printf(defines.allocator,"#define mediump\n");
-	printf(defines.allocator,"#define highp\n");
-	printf(defines.allocator,"#define ATTRIBUTE_IN in\n");
-	printf(defines.allocator,"#define VARYING_IN in\n");
-	printf(defines.allocator,"#define VARYING_OUT out\n");
-	printf(defines.allocator,"#define BONES_LENGTH 64\n");
-	printf(defines.allocator,"#define BONES_PER_VERTEX 4\n");
-	printf(defines.allocator,"#define DEF_LIGHT_STRUCT struct Light { vec4 position; vec4 diffuse; vec4 specular; vec4 parameters; };\n");
-	printf(defines.allocator,"#define DEF_MAT_STRUCT   struct Material { vec4 parameters; }\n");
-	printf(defines.allocator,"#define DEF_PIXEL_SHADER_OUT out vec4 arpheg_ps_out\n");
-	printf(defines.allocator,"#define PIXEL_SHADER_OUT arpheg_ps_out\n");
-#else
-	printf(defines.allocator,"#define ATTRIBUTE_IN attibute\n");
-	printf(defines.allocator,"#define VARYING_IN varying\n");
-	printf(defines.allocator,"#define VARYING_OUT varying\n");
-	printf(defines.allocator,"#define DEF_PIXEL_SHADER_OUT");
-	printf(defines.allocator,"#define PIXEL_SHADER_OUT gl_FragColor");
+	printf(defines.allocator,"#define COMPABILITY_NO_PRECISION 1\n");
+	printf(defines.allocator,"#define COMPABILITY_MODERN_GLSL 1\n");
 #endif
 	
 	auto versionHeaderLength = defines.allocator.size();

@@ -54,6 +54,7 @@ set(ARPHEG_ENGINE_FILES
 	data/font/font.cpp
 	data/intermediate/bundle/parser.cpp
 	data/intermediate/font/reader.cpp
+	data/intermediate/shader/preprocess.cpp
 	data/utils/path.cpp
 	
 	ui/ui.cpp

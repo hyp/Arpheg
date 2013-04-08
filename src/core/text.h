@@ -17,6 +17,8 @@ Bytes parseIndentedLines(Bytes& string);
 int32 parseInt32(Bytes& string);
 float parseFloat(Bytes& string);
 Bytes parseUntil(Bytes& string,char  terminator);
+Bytes parseAsciiUnderscore(Bytes& string);
+void  skipSpaces(Bytes& string);
 
 
 struct Lines: Bytes {
