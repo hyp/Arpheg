@@ -106,7 +106,9 @@ struct EntityGrid {
 	EntityGrid();
 };
 CullId EntityGrid::createFrustumCullSphere(const vec4f& sphere,EntityId entity){
-	return grid[0].createSphere(sphere,entity);
+	vec4f s = sphere;
+	s.w = -s.w; //NB: frustum culler expects sphere in format center, - radius
+	return grid[0].createSphere(s,entity);
 }
 CullId EntityGrid::updateFrustumCullSphere(CullId id,const vec4f& sphere){
 	//grid[0].update(id&kEntityBlockIdMask,sphere);
@@ -130,9 +132,9 @@ enum {
 	kEntityTypeOffset = 24,
 
 	kNormalEntity = 0,
-	kAnimatedEntity = 0x1000000,
-	kCustomEntity   = 0x2000000,
-	kLightEntity    = 0x3000000,
+	kAnimatedEntity = 1,
+	kCustomEntity   = 2,
+	kLightEntity    = 3,
 
 	flagHasFrustumCuller = 1,
 };
@@ -193,6 +195,10 @@ struct SkeletalAnimation {
 	}
 };
 
+struct VisibleLightEntity {
+	LightEntity* light;
+};
+
 Service::Service(core::Allocator* alloc) :
 	skeletonAnimations_(sizeof(SkeletalAnimation)*1024,allocator(),core::BufferAllocator::GrowOnOverflow) 
 {
@@ -204,6 +210,8 @@ Service::Service(core::Allocator* alloc) :
 
 	visibleEntities_ = (core::BufferAllocator*)alloc->allocate(sizeof(core::BufferAllocator)*services::tasking()->threadCount(),alignof(core::BufferAllocator));
 	visibleAnimatedEntities_ = (core::BufferAllocator*)alloc->allocate(sizeof(core::BufferAllocator)*services::tasking()->threadCount(),alignof(core::BufferAllocator));
+	visibleLights_ = (core::BufferAllocator*)alloc->allocate(sizeof(core::BufferAllocator)*services::tasking()->threadCount(),alignof(core::BufferAllocator));
+	
 	visibleEntitiesInited = false;
 	entityGrid_ = ALLOCATOR_NEW(alloc,EntityGrid);
 }
@@ -217,6 +225,7 @@ Service::~Service() {
 		for(size_t i = 0;i< services::tasking()->threadCount();++i){
 			visibleEntities_[i].~BufferAllocator();
 			visibleAnimatedEntities_[i].~BufferAllocator();
+			visibleLights_[i].~BufferAllocator();
 		}
 	}
 }
@@ -226,16 +235,19 @@ void Service::servicePreStep() {
 		for(size_t i = 0;i< services::tasking()->threadCount();++i){
 			new(visibleEntities_ + i) core::BufferAllocator(sizeof(VisibleEntity)*1024,allocator(),core::BufferAllocator::GrowOnOverflow);
 			new(visibleAnimatedEntities_ + i) core::BufferAllocator(sizeof(VisibleAnimatedEntity)*1024,allocator(),core::BufferAllocator::GrowOnOverflow);
+			new(visibleLights_ + i) core::BufferAllocator(sizeof(VisibleLightEntity)*1024,allocator(),core::BufferAllocator::GrowOnOverflow);
 		}
 		visibleEntitiesInited = true;
 	} else {
 		for(size_t i = 0;i< services::tasking()->threadCount();++i){
 			visibleEntities_[i].reset();
 			visibleAnimatedEntities_[i].reset();
+			visibleLights_[i].reset();
 		}
 	}
 	drawnEntities = 0;
 }
+
 static inline void storeTransform(EntityTransformation& transformation,const vec3f& position,const Quaternion& rotation,const vec3f& scale){
 	rotation.v().store(transformation.rotation);
 	vec4f(position.x,position.y,position.z,0.f).store(transformation.translation);
@@ -248,12 +260,19 @@ static inline uint32 createFrustumCuller(EntityId id,vec3f position,vec3f scale,
 	vec4f sp = vec4f(position) + vec4f(mesh->frustumShapeOffset) * vec4f(scale);
 	vec4f ss = vec4f(mesh->frustumShapeSize) * vec4f(scale);
 	float r = std::max(ss.x,std::max(ss.y,ss.z));
-	return grid->createFrustumCullSphere(vec4f(sp.x,sp.y,sp.z,-r),id).id;
+	return grid->createFrustumCullSphere(vec4f(sp.x,sp.y,sp.z,r),id).id;
 }
+static inline uint32 createEntityId(uint32 ptr,uint32 type){
+	return ptr | (type << kEntityTypeOffset);
+}
+static inline bool isEntityOfType(EntityId id,uint32 type){
+	return (id.id & (type << kEntityTypeOffset))!=0;
+}
+
 EntityId Service::create(data::Mesh* mesh,data::Material* material,const vec3f& position,const Quaternion& rotation,const vec3f& scale) {
 	if(mesh->hasSkeleton()){
 		auto dest = animatedEntities_->allocate();
-		EntityId result = { animatedEntities_->toId(dest) | kAnimatedEntity };
+		EntityId result = { createEntityId(animatedEntities_->toId(dest),kAnimatedEntity) };
 		dest->cullId = createFrustumCuller(result,position,scale,mesh,entityGrid_);
 		dest->flags_occCullId = 0;
 		auto anim = ALLOCATOR_NEW(&skeletonAnimations_,SkeletalAnimation) (result,mesh);
@@ -264,7 +283,7 @@ EntityId Service::create(data::Mesh* mesh,data::Material* material,const vec3f& 
 		return result;
 	} else {
 		auto dest = entities_->allocate();
-		EntityId result= { entities_->toId(dest) };
+		EntityId result= { createEntityId(entities_->toId(dest),kNormalEntity) };
 		dest->cullId = createFrustumCuller(result,position,scale,mesh,entityGrid_);
 		dest->flags_occCullId = 0;
 		storeTransform(dest->transformation,position,rotation,scale);
@@ -273,7 +292,8 @@ EntityId Service::create(data::Mesh* mesh,data::Material* material,const vec3f& 
 	}//return create(mesh->submesh(0),material,position,rotation,scale);
 }
 void Service::addAnimation(EntityId id,data::animation::Animation* animation,int count,float t) {
-	assert((id.id & kAnimatedEntity)!=0);
+	assert(isEntityOfType(id,kAnimatedEntity));
+
 	auto anim = getSkeletalAnimation(skeletonAnimations_,animatedEntities_->toPtr(id.id&kEntityPtrMask));
 	anim->add(animation,count,t);
 }
@@ -294,7 +314,7 @@ void Service::update(EntityId id,const vec3f& position,bool updatePosition,const
 
 EntityId Service::createLight(const ::rendering::Light& light,uint32 flags){
 	auto dest = lights_->allocate();
-	EntityId result= { lights_->toId(dest) | kLightEntity };
+	EntityId result= { createEntityId(lights_->toId(dest),kLightEntity) };
 	if(light.isPoint()){
 		dest->typeflags = flags | LightEntity::Point;
 		dest->cullId = entityGrid_->createFrustumCullSphere(light.sphere(),result).id;
@@ -320,24 +340,28 @@ void Service::setActiveCameras(::rendering::Camera* cameras,size_t count) {
 	}
 }
 void Service::markVisibleEntity(const EntityGridCell* cell,FrustumMask mask,EntityId id) {
-	auto type = id.id & (~kEntityPtrMask);
+	auto threadId = services::tasking()->threadId();
+	auto type = id.id >> kEntityTypeOffset;
+	auto eid  = id.id & kEntityPtrMask;
+
 	switch(type){
-	case 0: {
-		auto entity = (VisibleEntity*)visibleEntities_[services::tasking()->threadId()].allocate(sizeof(VisibleEntity));
+	case kNormalEntity: {
+		auto entity = (VisibleEntity*)visibleEntities_[threadId].allocate(sizeof(VisibleEntity));
 		entity->mask = mask;
-		entity->entity = entities_->toPtr(id.id&kEntityPtrMask);
+		entity->entity = entities_->toPtr(eid);
 		} break;
 	case kAnimatedEntity: {
-		auto entity = (VisibleAnimatedEntity*)visibleAnimatedEntities_[services::tasking()->threadId()].allocate(sizeof(VisibleAnimatedEntity));
+		auto entity = (VisibleAnimatedEntity*)visibleAnimatedEntities_[threadId].allocate(sizeof(VisibleAnimatedEntity));
 		entity->mask = mask;
-		entity->entity = animatedEntities_->toPtr(id.id&kEntityPtrMask);
+		entity->entity = animatedEntities_->toPtr(eid);
 		} break;
 	case kCustomEntity: {
 						} break;
 	case kLightEntity: {
 		//Lights are filtered separately.
-
-					   }break;
+		auto entity = (VisibleLightEntity*)visibleLights_[threadId].allocate(sizeof(VisibleLightEntity));
+		entity->light = lights_->toPtr(eid);
+		} break;
 	}
 }
 void Service::spawnLightFrustumCullingTasks() {
@@ -370,6 +394,7 @@ static void drawFrustumShape(EntityGrid* grid,uint32 id){
 void Service::render(events::Draw& ev){
 	using namespace core::bufferArray;
 	auto frustumMask = 1<<(0);
+	assert(services::tasking()->isRenderingThread());
 
 	for(size_t i = 0;i< services::tasking()->threadCount();++i){
 		for(VisibleEntity* ent = begin<VisibleEntity>(visibleEntities_[i]),*entend = end<VisibleEntity>(visibleEntities_[i]);ent<entend;++ent){

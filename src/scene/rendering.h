@@ -114,6 +114,8 @@ namespace rendering {
 		
 		core::BufferAllocator* visibleEntities_;
 		core::BufferAllocator* visibleAnimatedEntities_;
+		core::BufferAllocator* visibleLights_;
+
 		EntityGrid* entityGrid_;
 		core::BufferAllocator  skeletonAnimations_;
 		
