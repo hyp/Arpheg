@@ -5,6 +5,10 @@
 namespace rendering {
 namespace frustumCulling {
 
+enum {
+	kSuccessMask = 0xFFffFFff,
+};
+
 static inline vec4f planeNormalize(const vec4f& x){
 	auto norm = 1.0f/x.length3();
 	return x*norm;
@@ -54,7 +58,7 @@ static inline Mask intersect(const FrustumSoA& frustum,const vec4f& sphere){
 	 __m128 pos_xxxx = _mm_shuffle_ps(sp,sp,_MM_SHUFFLE(0,0,0,0)); 
 	 __m128 pos_yyyy = _mm_shuffle_ps(sp,sp,_MM_SHUFFLE(1,1,1,1)); 
 	 __m128 pos_zzzz = _mm_shuffle_ps(sp,sp,_MM_SHUFFLE(2,2,2,2)); 
-	 __m128 pos_rrrr = _mm_sub_ps(_mm_set_ps1(1.0f),_mm_shuffle_ps(sp,sp,_MM_SHUFFLE(3,3,3,3))); // - r
+	 __m128 pos_rrrr = _mm_shuffle_ps(sp,sp,_MM_SHUFFLE(3,3,3,3)); // - r
 
 	 __m128 dotA_0123 = vec4f::fma(pos_xxxx,frustum.planes0_4_x.xyzw,frustum.planes0_4_w.xyzw);
 	 dotA_0123 = vec4f::fma(pos_yyyy,frustum.planes0_4_y.xyzw,dotA_0123);
@@ -73,7 +77,7 @@ static inline Mask intersect(const FrustumSoA& frustum,const vec4f& sphere){
 	 //If any masks are 0xFFFF_FFFF return false.
 	 uint32 mask = uint32(_mm_movemask_ps(dotA_0123)); //mask is zero if r <= for all planes.
 	 //Is there a better way?
-	 return mask == 0? 0xFFffFFff : 0;
+	 return mask == 0? Mask(kSuccessMask) : Mask(0);
 #else
 	auto pos_xxxx = sphere.xxxx();
 	auto pos_yyyy = sphere.yyyy();
@@ -89,13 +93,14 @@ static inline Mask intersect(const FrustumSoA& frustum,const vec4f& sphere){
 	dotA_45 = vec4f::fma(pos_zzzz,frustum.planes4_6_z,dotA_45);
 
 	//TODO
+
+	return Mask(kSuccessMask);
 #endif
-	return 0xFFffFFff;
 }
 static inline Mask intersect(const Frustum& frustum,const vec4f& sphere){
 	for(int i =0;i<6;++i)
-		if((frustum.planes[i].dot3(sphere) + frustum.planes[i].w) < -sphere.w) return 0;
-	return 0xFFffFFff;
+		if((frustum.planes[i].dot3(sphere) + frustum.planes[i].w) < sphere.w) return 0;
+	return Mask(kSuccessMask);
 }
 
 //Use the PN vertex AABB test.
@@ -108,7 +113,7 @@ static inline Mask intersect(const Frustum& frustum,const vec4f& aabbMin,const v
 		
 		if(frustum.planes[i].dot3(p)  < - frustum.planes[i].w) return 0;
 	}
-	return 0xFFffFFff;
+	return Mask(kSuccessMask);
 }
 static inline Mask intersect(const FrustumSoA& frustum,const vec4f& aabbMin,const vec4f& aabbMax){
 #ifdef ARPHEG_ARCH_X86
@@ -140,9 +145,9 @@ static inline Mask intersect(const FrustumSoA& frustum,const vec4f& aabbMin,cons
 	 //If any masks are 0xFFFF_FFFF return false.
 	 uint32 m = uint32(_mm_movemask_ps(dotA_0123)); //mask is zero if r <= for all planes.
 	 //Is there a better way?
-	 return m == 0? 0xFFffFFff : 0;
+	 return m == 0? Mask(kSuccessMask) : Mask(0);
 #else
-	return 0xFFffFFff;
+	return Mask(kSuccessMask);
 #endif
 }
 
@@ -157,19 +162,29 @@ Mask Culler::addFrustum(const Frustum& frustum) {
 
 void cullSpheres(Culler* culler,const scene::rendering::EntityGridCell* cell){
     using namespace scene::rendering;
-    
+
     Mask masks[EntityGridCell::kMaxBlockEntities];
     for(uint32 j =0;j < EntityGridCell::kMaxBlocks;++j){
         const EntityGridCell::Block& block = cell->sphereFrustumCullers.blocks[j];         
         //Cull
-        for(uint32 k = 0,fmask = 1;k < culler->frustumCount;++k,fmask<<=1){
+		uint32 k =0,fmask = 1;
+		const FrustumSoA& frustum = culler->frustums[k];
+		for(uint32 i =0;i < uint32(cell->sphereFrustumCullers.count[j]);++i){
+			auto inside = intersect(frustum,block.positions[i]);
+			masks[i] = fmask & inside;
+		}
+
+        for(;;){
+			++k; fmask<<=1;
+			if(k >= culler->frustumCount) break;
+
 			const FrustumSoA& frustum = culler->frustums[k];
-            for(uint32 i =0;i < uint32(cell->sphereFrustumCullers.count[j]);++i){
-                auto inside = intersect(frustum,block.positions[i]);
-				//auto inside2 = intersect(culler->frustumsAoS[j],block.positions[i]);
-                masks[i] |= fmask & inside;
-            }
+			for(uint32 i =0;i < uint32(cell->sphereFrustumCullers.count[j]);++i){
+				auto inside = intersect(frustum,block.positions[i]);
+				masks[i] |= fmask & inside;
+			}
         }   
+
         //Filter
 		auto scene = culler->scene;
         for(uint32 i = 0;i < uint32(cell->sphereFrustumCullers.count[j]);++i){
@@ -185,13 +200,24 @@ void cullAABBs  (Culler* culler,const scene::rendering::EntityGridCell* cell) {
 	for(uint32 j =0;j < EntityGridCell::kMaxBlocks;++j){
 		const EntityGridCell::BoxBlock& block = cell->boxFrustumCullers.blocks[j];   
 		//Cull
-        for(uint32 k = 0,fmask = 1;k < culler->frustumCount;++k,fmask<<=1){
+		uint32 k =0,fmask = 1;
+		const FrustumSoA& frustum = culler->frustums[k];
+		for(uint32 i =0;i < uint32(cell->boxFrustumCullers.count[j]);++i){
+			auto inside = intersect(frustum,block.positions[i].min,block.positions[i].max);
+			masks[i] = fmask & inside;
+		}
+
+        for(;;){
+			++k; fmask<<=1;
+			if(k >= culler->frustumCount) break;
+
 			const FrustumSoA& frustum = culler->frustums[k];
-            for(uint32 i =0;i < uint32(cell->boxFrustumCullers.count[j]);++i){
-                auto inside = intersect(frustum,block.positions[i].min,block.positions[i].max);
-                masks[i] |= fmask & inside;
-            }
-        }
+			for(uint32 i =0;i < uint32(cell->boxFrustumCullers.count[j]);++i){
+				auto inside = intersect(frustum,block.positions[i].min,block.positions[i].max);
+				masks[i] |= fmask & inside;
+			}
+        }   
+
         //Filter
 		auto scene = culler->scene;
         for(uint32 i = 0;i < uint32(cell->boxFrustumCullers.count[j]);++i){

@@ -1,5 +1,7 @@
 // Implements frustum culling of spheres and aabbs
 // Used to filter all the renderable entities in a scene into arrays of visible entities with visibility masks.
+
+// NB: the sphere culler assumes spheres are stored in a vec4 where xyz is center and w is -radius
 #pragma once
 
 #include "types.h"

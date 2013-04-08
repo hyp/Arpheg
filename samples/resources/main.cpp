@@ -103,7 +103,7 @@ int main(){
 	application::profiling::Timer profRasterizeTiles("Rasterize Tiles");
 	application::profiling::Timer profQuery("Query occlusion");
 
-	float cam = -3.f;
+	float cam = 3.f;
 	float anim = 0.f;
 
 	auto ent = services::sceneRendering()->create(foo,foo->submesh(0)->material(),vec3f(20,0,0),Quaternion::identity(),vec3f(1.0f,2.0f,1.0f));
@@ -148,7 +148,7 @@ int main(){
 		struct Box {
 			vec3f min,max;
 		};
-		Box boxes[] = {{vec3f(0,1.0f,1.0f),vec3f(1,1.8f,1.6f)},{vec3f(1.0,0.5f,0.0f),vec3f(1.4f,1.9f,0.8f)}};
+		Box boxes[] = {{vec3f(0,1.0f,1.0f),vec3f(2,2.8f,2.6f)},{vec3f(1.0,0.5f,0.0f),vec3f(1.4f,1.9f,0.8f)}};
 		auto boxCount = sizeof(boxes)/sizeof(boxes[0]);
 
 		uint32 cov = 0;
@@ -168,7 +168,7 @@ int main(){
 		services::tasking()->wait(depthBuffer.createRasterizationTasks());
 		profRasterizeTiles.end();
 		profQuery.start();
-		for(uint32 i = 0;i<100;++i) 
+		for(uint32 i = 0;i<1000;++i) 
 			vis = depthBuffer.testAABB(vec3f(0.5,1.5,1.5),vec3f(0.75,1.75,1.75));
 		profQuery.end();
 

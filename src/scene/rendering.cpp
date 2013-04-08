@@ -248,7 +248,7 @@ static inline uint32 createFrustumCuller(EntityId id,vec3f position,vec3f scale,
 	vec4f sp = vec4f(position) + vec4f(mesh->frustumShapeOffset) * vec4f(scale);
 	vec4f ss = vec4f(mesh->frustumShapeSize) * vec4f(scale);
 	float r = std::max(ss.x,std::max(ss.y,ss.z));
-	return grid->createFrustumCullSphere(vec4f(sp.x,sp.y,sp.z,r),id).id;
+	return grid->createFrustumCullSphere(vec4f(sp.x,sp.y,sp.z,-r),id).id;
 }
 EntityId Service::create(data::Mesh* mesh,data::Material* material,const vec3f& position,const Quaternion& rotation,const vec3f& scale) {
 	if(mesh->hasSkeleton()){
@@ -313,7 +313,8 @@ void Service::remove(EntityId id){
 
 void Service::setActiveCameras(::rendering::Camera* cameras,size_t count) {
 	assert(count < kMaxActiveCameras);
-	activeCameras = (uint32)std::max(count,size_t(kMaxActiveCameras));
+	activeCameras = (uint32)std::min(count,size_t(kMaxActiveCameras));
+	static int cc = 0;
 	for(uint32 i = 0;i < activeCameras;++i){
 		this->cameras[i] = cameras[i];
 	}
@@ -364,7 +365,7 @@ static inline void getMatrices(const EntityTransformation& transformation,mat44f
 static void drawFrustumShape(EntityGrid* grid,uint32 id){
 	CullId cullId = { id };
 	auto sphere = grid->getFrustumCullSphere(cullId);
-	services::debugRendering()->sphere(mat44f::identity(),sphere.xyz(),sphere.w,vec4f(0.f,0.f,1.f,1.f));
+	services::debugRendering()->sphere(mat44f::identity(),sphere.xyz(),fabs(sphere.w),vec4f(0.f,0.f,1.f,1.f));
 }
 void Service::render(events::Draw& ev){
 	using namespace core::bufferArray;
