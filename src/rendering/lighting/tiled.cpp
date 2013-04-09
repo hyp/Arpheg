@@ -95,15 +95,15 @@ void TileGrid::Tiler::tile(const vec4f& sphere,LightIndex lightId) {
 	++offset;
 }
 
-static inline bool intersects(int32 tx,int32 ty,const TileGrid::LightAABB& lightRect){
-	//overlap on the x axis?
-	if(tx > lightRect.min[0]){
-		if(lightRect.max[0] <= tx) return false;
-	}
-	else {
-		if((tx + kTileSize) <= lightRect.min[0]) return false;
-	}
-	//overlap on the y axis?
+struct LightAABBXAxis {
+	int16 center,halfSize;
+};
+
+
+static inline bool columnIntersect(int32 tx,const LightAABBXAxis& lightRect){
+	return abs(tx - int32(lightRect.center)) <= (int32(lightRect.halfSize) + kTileSize/2);
+}
+static inline bool rowIntersect(int32 ty,const TileGrid::LightAABB& lightRect){
 	if(ty > lightRect.min[1]){
 		if(lightRect.max[1] <= ty) return false;
 	}
@@ -124,20 +124,39 @@ void TileGrid::performLightAssignment(const Tiler& tiler) {
 	assert(tiles);
 	assert(lightCount <= std::numeric_limits<LightIndex>::max());
 
+	size_t rowLightCount;
+	LightAABBXAxis rowAABB[Tiler::kMaxLightsPerView];
+	LightIndex rowIndices[Tiler::kMaxLightsPerView];
+	
+
 	for(int32 y = 0;y<tileCount_.y;++y){
 #ifdef ARPHEG_RENDERING_GL
 		auto ty = tileCount_.y*kTileSize - (y+1)*kTileSize;//OpenGL has y 0 at the bottom.
 #else
 		auto ty = (y)*kTileSize;
 #endif
+		
+		//Find the lights intersecting this row.
+		rowLightCount = 0;
+		for(size_t i = 0;i< lightCount;++i){
+			if(rowIntersect(ty,screenSpaceLights[i])){
+				auto size = screenSpaceLights[i].max[0] - screenSpaceLights[i].min[0];
+				rowAABB[rowLightCount].center = screenSpaceLights[i].min[0] + size/2;
+				rowAABB[rowLightCount].halfSize = size/2;
+				rowIndices[rowLightCount] = indices[i];
+				++rowLightCount;
+			}
+		}
+
+		//Check all tiles in this row.
 		auto tiles = this->tiles + y*tileCount_.x;
 	for(int32 x = 0;x<tileCount_.x;++x){
-		auto tx = x*kTileSize;
+		auto tx = x*kTileSize +kTileSize/2;//center of the tile.
 
 		auto start = idx;
-		for(size_t i = 0;i< lightCount;++i){
-			if(intersects(tx,ty,screenSpaceLights[i])){
-				indexes[idx] = indices[i];
+		for(size_t i = 0;i< rowLightCount;i++){
+			if(columnIntersect(tx,rowAABB[i])){
+				indexes[idx] = rowIndices[i];
 				++idx;
 			}
 		}
