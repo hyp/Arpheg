@@ -17,7 +17,7 @@
 #include "../../src/scene/types.h"
 #include "../../src/scene/rendering.h"
 
-
+#include "../../src/rendering/lighting/lighting.h"
 #include "../../src/rendering/opengl/gl.h"
 
 int main(){
@@ -103,7 +103,7 @@ int main(){
 	application::profiling::Timer profRasterizeTiles("Rasterize Tiles");
 	application::profiling::Timer profQuery("Query occlusion");
 
-	float cam = 3.f;
+	float cam = -3.f;
 	float anim = 0.f;
 
 	auto ent = services::sceneRendering()->create(foo,foo->submesh(0)->material(),vec3f(20,0,0),Quaternion::identity(),vec3f(1.0f,2.0f,1.0f));
@@ -116,6 +116,20 @@ int main(){
 	} } }
 	application::profiling::Timer profAnim("Animation interpolation");
 
+	for(int x = 0;x<5;++x){
+	for(int y = 0;y<5;++y){
+	for(int z = 0;z<5;++z){
+		rendering::Light light;
+		light.makePoint(vec3f(float(x)*2.0f,float(y)*2.0f,float(z)*2.0f) + vec3f(0.5,0.5,0.5),
+			vec3f(1,1,1),vec3f(1,1,1),vec3f(0.2,0.2,0.2),2.0,0.1,0.5,0.8);
+		services::sceneRendering()->createLight(light);
+	} } }
+	application::profiling::Timer profTileLightAssignment("Tile light assignment");
+
+	ui::TextureView tview2;
+	tview2.color_ = 0xA0FFFFFF;
+	ui::Widget lightTileView;lightTileView.addComponent(&tview2);lightTileView.addComponent(&tlayout);
+	services::ui()->root()->addChild(&lightTileView);
 
 	while(!services::application()->quitRequest()){
 		services::preStep();
@@ -172,6 +186,7 @@ int main(){
 			vis = depthBuffer.testAABB(vec3f(0.5,1.5,1.5),vec3f(0.75,1.75,1.75));
 		profQuery.end();
 
+		
 
 
 		//vis = depthBuffer.testAABB(vec3f(0.5,1.5,1.5),vec3f(0.75,1.75,1.75));
@@ -208,12 +223,22 @@ int main(){
 		dmr.bind(staticMeshPipeline,program);
 		scene::events::Draw ev; ev.meshRenderer = &dmr;
 		services::sceneRendering()->setActiveCameras(&camera,1);
+
 		services::sceneRendering()->spawnFrustumCullingTasks();
+
 		profAnim.start();
 		services::sceneRendering()->spawnAnimationTasks();
 		profAnim.end();
+		profTileLightAssignment.start();
+		services::sceneRendering()->spawnLightProcessingTasks();
+		profTileLightAssignment.end();
+		services::sceneRendering()->transferLightData();
 		services::sceneRendering()->render(ev);
 		
+		auto t = services::sceneRendering()->lighting_->tileGrid(0)->tileBufferTexture();
+		tview2.texture_.id = t.id;
+		tview2.texture_.type = t.type;
+		tview2.pipeline_ = services::data()->pipeline(services::data()->bundle("core",true),"rendering.visualize.lightTiles.pipeline",true)->pipeline();
 
 		
 		

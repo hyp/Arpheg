@@ -96,6 +96,7 @@ STRUCT_PREALIGN(16) struct vec4f {
 	inline vec4f operator * (const vec4f& v) const;
 	inline vec4f operator / (const vec4f& v) const;
 	inline vec4f operator * (float k) const;
+	inline vec4f operator / (float k) const;
 
 	inline float sum() const;
 	inline float dot(const vec4f& v) const;

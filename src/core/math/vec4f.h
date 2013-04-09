@@ -48,6 +48,10 @@ inline vec4f vec4f::fma(const vec4f& a,const vec4f& b,const vec4f& c) { return a
 		__m128 mk = _mm_set_ps1(k);
 		return vec4f(_mm_mul_ps(xyzw,mk));
 	}
+	inline vec4f vec4f::operator / (float k) const {
+		__m128 mk = _mm_set_ps1(k);
+		return vec4f(_mm_div_ps(xyzw,mk));
+	}
 
 	inline vec4f vec4f::zero() { return vec4f(_mm_setzero_ps()); }
 	inline vec4f vec4f::load(const float *ptr) { return vec4f(_mm_load_ps(ptr)); }
@@ -75,7 +79,11 @@ inline vec4f vec4f::fma(const vec4f& a,const vec4f& b,const vec4f& c) { return a
 	inline vec4f vec4f::operator - (const vec4f& v) const { return vec4f(x-v.x,y-v.y,z-v.z,w-v.w); } 
 	inline vec4f vec4f::operator * (const vec4f& v) const { return vec4f(x*v.x,y*v.y,z*v.z,w*v.w); }
 	inline vec4f vec4f::operator / (const vec4f& v) const { return vec4f(x/v.x,y/v.y,z/v.z,w/v.w); }
-	inline vec4f operator * (float k) const { return vec4f(x*k,y*k,z*k,w*k); }
+	inline vec4f vec4f::operator * (float k) const { return vec4f(x*k,y*k,z*k,w*k); }
+	inline vec4f vec4f::operator / (float k) const {
+		auto rcp = 1.0f/k;
+		return vec4f(x*rcp,y*rcp,z*rcp,w*rcp);
+	}
 
 	inline vec4f vec4f::zero() { return vec4f(0.f,0.f,0.f,0.f); }
 	inline vec4f vec4f::load(const float *ptr) { return vec4f(ptr[0],ptr[1],ptr[2],ptr[3]); }

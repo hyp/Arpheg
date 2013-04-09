@@ -1,3 +1,5 @@
+// Provides an implementation for the CPU based light tile grid for the tile based forward/deferred renderer.
+
 #pragma once
 
 #include "../types.h"
@@ -8,22 +10,36 @@ namespace lighting {
 
 class TileGrid {
 public:
-	typedef uint16 LightIndex;
-	typedef uint16 Index;
+	typedef uint32 Tile;
+	enum { kIndexBufferMaxSize = 0xFFFFF };//20 bits for index per tile.
+	enum { kMaxLightsPerTile = 0xFFF };    //12 bits for count per tile.
 
-	struct Tile16 {
-		uint16 offset;
-		uint16 count;
-	};
+	//Max 0xFFFF lights.
+	typedef uint16 LightIndex;
+	
 	struct LightAABB {
 		int16 min[2];
 		int16 max[2];
+	};
+	struct Tiler {
+		enum { kMaxLightsPerView = 2048 };
+
+		Tiler(const Camera& camera,const Viewport& viewport); 
+		void tile(const vec4f& lightSphere,LightIndex lightId);
+		
+
+		const mat44f& cameraMatrix;
+		vec4f  screenCenter;
+		vec2i  viewSizeMinus1;
+		uint32 offset;
+		LightAABB  lightAABB [kMaxLightsPerView];
+		LightIndex lightIndex[kMaxLightsPerView];
 	};
 
 	TileGrid();
 	~TileGrid();
 	void updateViewport(const Viewport& viewport);
-	void spawnLightAssignmentTasks(LightAABB* lightScreenSpaceVertices,size_t count);
+	void performLightAssignment(const Tiler& tiler);
 	//Propagates the light assignment changes to the gpu.
 	void updateBuffers();
 
@@ -37,7 +53,7 @@ private:
 
 	vec2i  size_;
 	vec2i  tileSize_;vec2i tileCount_;
-	Tile16* tiles;
+	Tile* tiles;
 	LightIndex* indexes;
 	size_t indexOffset;
 

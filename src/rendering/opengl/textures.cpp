@@ -142,6 +142,10 @@ namespace rendering {
 		case UINT_RG_1616: result = GL_RG; internalFormat = GL_RG16UI; type = GL_UNSIGNED_SHORT; break;
 		case UINT_RGB_161616:result = GL_RGB; internalFormat = GL_RGB16UI; type = GL_UNSIGNED_SHORT; break;
 		case UINT_RGBA_16161616:result = GL_RGBA; internalFormat = GL_RGBA16UI;  type = GL_UNSIGNED_SHORT;break;
+		case UINT_R_32: result = GL_RED; internalFormat = GL_R32UI; type = GL_UNSIGNED_INT; break;
+		case UINT_RG_3232: result = GL_RG; internalFormat = GL_RG32UI; type = GL_UNSIGNED_INT; break;
+		case UINT_RGB_323232: result = GL_RGB; internalFormat = GL_RGB32UI; type = GL_UNSIGNED_INT; break;
+		case UINT_RGBA_32323232: result = GL_RGBA; internalFormat = GL_RGBA32UI; type = GL_UNSIGNED_INT; break;
 		case FLOAT_R_32: result = GL_RED; internalFormat = GL_R32F; type = GL_FLOAT; break;
 		case FLOAT_RG_3232: result = GL_RG;  internalFormat = GL_RG32F; type = GL_FLOAT; break;
 		case FLOAT_RGB_323232: result = GL_RGB; internalFormat = GL_RGB32F; type = GL_FLOAT; break;
@@ -188,7 +192,7 @@ namespace rendering {
 		GLint internalFormat,type;
 		GLint fmt = textureFormat(format,internalFormat,type);
 		CHECK_GL(glBindTexture(GL_TEXTURE_BUFFER, texture.id));
-		glTexBuffer(GL_TEXTURE_BUFFER,fmt,buffer.id);
+		glTexBuffer(GL_TEXTURE_BUFFER,internalFormat,buffer.id);
 		return texture;
 	}
 	Texture1D Service::create(const texture::Descriptor1D& descriptor,const void* texels) {

@@ -110,6 +110,7 @@ public:
 
 	rendering::Pipeline  pipeline_;
 	rendering::Texture2D texture_;
+	uint32 color_;
 };
 class Rectangle: public Renderable {
 public:

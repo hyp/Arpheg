@@ -6,6 +6,7 @@
 #include "../rendering/frustumCulling.h"
 #include "../rendering/debug.h"
 #include "../rendering/animation.h"
+#include "../rendering/lighting/lighting.h"
 #include "../services.h"
 #include "rendering.h"
 #include "entityPool.h"
@@ -196,7 +197,8 @@ struct SkeletalAnimation {
 };
 
 struct VisibleLightEntity {
-	LightEntity* light;
+	FrustumMask mask;
+	LightEntity* entity;
 };
 
 Service::Service(core::Allocator* alloc) :
@@ -214,6 +216,7 @@ Service::Service(core::Allocator* alloc) :
 	
 	visibleEntitiesInited = false;
 	entityGrid_ = ALLOCATOR_NEW(alloc,EntityGrid);
+	lighting_ = ALLOCATOR_NEW(alloc,::rendering::lighting::Service);
 }
 Service::~Service() {
 	entities_->~EntityPool();
@@ -228,6 +231,9 @@ Service::~Service() {
 			visibleLights_[i].~BufferAllocator();
 		}
 	}
+
+	entityGrid_->~EntityGrid();
+	lighting_->~Service();
 }
 void Service::servicePreStep() {
 	activeCameras = 0;
@@ -246,6 +252,7 @@ void Service::servicePreStep() {
 		}
 	}
 	drawnEntities = 0;
+	lighting_->servicePreStep();
 }
 
 static inline void storeTransform(EntityTransformation& transformation,const vec3f& position,const Quaternion& rotation,const vec3f& scale){
@@ -360,12 +367,53 @@ void Service::markVisibleEntity(const EntityGridCell* cell,FrustumMask mask,Enti
 	case kLightEntity: {
 		//Lights are filtered separately.
 		auto entity = (VisibleLightEntity*)visibleLights_[threadId].allocate(sizeof(VisibleLightEntity));
-		entity->light = lights_->toPtr(eid);
+		entity->mask = mask;
+		entity->entity = lights_->toPtr(eid);
 		} break;
 	}
 }
-void Service::spawnLightFrustumCullingTasks() {
+void Service::spawnLightProcessingTasks() {
 	assert(activeCameras);
+
+	using namespace ::core::bufferArray;
+	using namespace ::rendering::lighting;
+
+	uint32 viewCount = 1;
+
+	::rendering::Viewport viewports[kMaxActiveCameras];
+	viewports[0].position = vec2i(0,0);
+	viewports[0].size = services::rendering()->context()->frameBufferSize();
+
+	lighting_->setActiveViewports(viewports,viewCount);
+
+	//Merge visible lights from the thread buffers.
+	size_t offset = 0;
+	TileGrid::Tiler tiler(cameras[0],viewports[0]);
+	for(size_t i = 0;i< services::tasking()->threadCount();++i){
+		auto count = length<VisibleLightEntity>(visibleLights_[i]);
+		if(offset + count >lighting_->maxActiveLights()) break;
+		
+		uint32 view = 0;
+		uint32 viewMask = 1;
+		
+		for(VisibleLightEntity* ent = begin<VisibleLightEntity>(visibleLights_[i]),*entend = end<VisibleLightEntity>(visibleLights_[i]);ent<entend;++ent){
+			lighting_->addActiveLight(ent->entity->light);
+			if(ent->mask & 1) tiler.tile(ent->entity->light.sphere(),TileGrid::LightIndex(offset));
+			++offset;
+		}
+		
+		lighting_->tileGrid(view)->performLightAssignment(tiler);
+		//The other views.
+		for(;;){
+			++view;viewMask<<=1;
+			if(view >= viewCount) break;
+			for(VisibleLightEntity* ent = begin<VisibleLightEntity>(visibleLights_[i]),*entend = end<VisibleLightEntity>(visibleLights_[i]);ent<entend;++ent){
+				if(ent->mask & viewMask) tiler.tile(ent->entity->light.sphere(),TileGrid::LightIndex(offset));
+			}
+		}
+	}
+
+	lighting_->tileGrid(0)->performLightAssignment(tiler);
 }
 void Service::spawnFrustumCullingTasks() {
 	assert(activeCameras);
@@ -379,6 +427,9 @@ void Service::spawnFrustumCullingTasks() {
 	auto cell = entityGrid_->grid;
 	if(cell->totalSphereCount_ > 0) cullSpheres(&culler,cell);
 	if(cell->totalBoxCount_ > 0)    cullAABBs(&culler,cell);
+}
+void Service::transferLightData() {
+	lighting_->transferData();
 }
 static inline void getMatrices(const EntityTransformation& transformation,mat44f& world){
 	Quaternion rotation(vec4f::load(transformation.rotation));

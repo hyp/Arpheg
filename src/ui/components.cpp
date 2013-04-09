@@ -130,7 +130,9 @@ vec2i Image::calculateSize() {
 
 static data::normalizedUint16::Type defaultTextureCoords[] = { 0,0, data::normalizedUint16::one , data::normalizedUint16::one };
 
-TextureView::TextureView(rendering::Texture2D texture,rendering::Pipeline pipeline) : pipeline_(pipeline),texture_(texture) {}
+TextureView::TextureView(rendering::Texture2D texture,rendering::Pipeline pipeline) : pipeline_(pipeline),texture_(texture) {
+	color_ = 0xFFffFFff;
+}
 void TextureView::draw(Widget* widget,events::Draw& ev) {
 	if(texture_ == rendering::Texture2D::null()) return;
 
@@ -144,7 +146,7 @@ void TextureView::draw(Widget* widget,events::Draw& ev) {
 		batchId = ev.renderer->registerBatch(batch,pipelineId);
 	}
 	auto geometry = ev.renderer->allocate(ev.layerId,batchId,ev.renderer->uiTexture(texture_),4,6);
-	rendering::draw2D::positionInt16::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,defaultTextureCoords,0xFFffFFff);	
+	rendering::draw2D::positionInt16::textured::coloured::quad(geometry,ev.position,ev.position + ev.size,defaultTextureCoords,color_);	
 }
 
 Rectangle::Rectangle(uint32 colour){

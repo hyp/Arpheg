@@ -1,10 +1,13 @@
 #pragma once
 
+#include "../core/math.h"
+#include "../core/memory.h"
 #include "types.h"
 //#include "events.h"
 #include "../rendering/frustumCulling.h"
-#include "../core/math.h"
-#include "../core/memory.h"
+#include "../rendering/lighting/types.h"
+
+
 
 namespace scene {
 namespace rendering {
@@ -115,6 +118,7 @@ namespace rendering {
 		core::BufferAllocator* visibleEntities_;
 		core::BufferAllocator* visibleAnimatedEntities_;
 		core::BufferAllocator* visibleLights_;
+		::rendering::lighting::Service* lighting_;
 
 		EntityGrid* entityGrid_;
 		core::BufferAllocator  skeletonAnimations_;
@@ -135,10 +139,14 @@ namespace rendering {
 		void markVisibleEntity(const EntityGridCell* cell,FrustumMask mask,EntityId id);
 
 		void setActiveCameras(::rendering::Camera* cameras,size_t count);
+		
 		//Tasks
-		void spawnLightFrustumCullingTasks();
 		void spawnFrustumCullingTasks();
+		void spawnLightProcessingTasks();
 		void spawnAnimationTasks();
+
+		//Data transfer to the rendering device
+		void transferLightData();
 
 		void render(events::Draw& ev);
 		inline size_t renderedEntityCount() const;

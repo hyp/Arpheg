@@ -11,11 +11,23 @@
 namespace rendering {
 namespace lighting {
 
-Service::Service(){
+Service::Service(size_t maxLightsPerFrame){
+	lightsData_ = (Light*)core::memory::globalAllocator()->allocate(sizeof(Light)*maxLightsPerFrame,alignof(Light));
+	assertRelease(std::numeric_limits<uint16>::max() >= maxLightsPerFrame);
+	lightMax = uint16(maxLightsPerFrame);
+	lightCount = 0;
 	tileGrids = (TileGrid*) core::memory::align_forward(tileGridStorage_,alignof(TileGrid));
 	tileGridCount = 0;
 }
 Service::~Service(){
+}
+void Service::servicePreStep(){
+	lightCount = 0;
+}
+void Service::addActiveLight(const Light& light) {
+	//TODO Debug: overflow check
+	lightsData_[lightCount] = light;
+	++lightCount;
 }
 void Service::createTileGrids(Viewport* viewports,uint32 count) {
 	if(count > tileGridCount){
@@ -34,8 +46,13 @@ void Service::createTileGrids(Viewport* viewports,uint32 count) {
 }
 void Service::setActiveViewports(Viewport* viewports,uint32 count){
 	assert(count <=  kMaxActiveViewports);
-	assert(services::tasking()->isRenderingThread());
 	createTileGrids(viewports,count);
+}
+void Service::transferData() {
+	for(uint32 i =0;i<tileGridCount;++i){
+		tileGrids[i].updateBuffers();
+	}
+	lights_.update(core::Bytes(lightsData_,lightCount*sizeof(Light)));
 }
 
 } }

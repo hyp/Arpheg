@@ -28,6 +28,14 @@ shaderLibrary:
 	id = 'shaders.constants'
 	path = 'shaderlib/constants.h'
 	
+shaderLibrary:
+	id = 'shaders.lighting.tiled'
+	path = 'shaderlib/lightingTiled.glsl'
+
+shaderLibrary:
+	id = 'shaders.visualizeHeat'
+	path = 'shaderlib/visualizeHeat.glsl'
+
 pipeline:
 	id = 'rendering.debug.pipeline'
 	glsl.vertexAttributes: 'position', 'colour'
@@ -67,6 +75,38 @@ pipeline:
 			mediump float z = texture2D(textures,vsTexcoord).r;
 			mediump float v = (z+1.0f)*0.5;
 			PIXEL_SHADER_OUT = vec4(v,v,v,z<1.0? 1.0 : 0.0)* vsColour;
+		}
+	
+
+pipeline:
+	id = 'rendering.visualize.lightTiles.pipeline'
+	glsl.vertexAttributes: 'position','texcoord','colour'
+	vertexShader:
+		#require core.shaders.glslCompability
+		ATTRIBUTE_IN vec2 position; ATTRIBUTE_IN vec2 texcoord; ATTRIBUTE_IN vec4 colour;
+		VARYING_OUT mediump vec2 vsTexcoord;VARYING_OUT lowp vec4 vsColour;
+		uniform highp mat4 matrix;
+		void main() { 
+			gl_Position = matrix*vec4(position,0,1);
+			vsTexcoord = vec2(texcoord.x,1.0-texcoord.y); vsColour = colour;
+		}
+	pixelShader:
+		#require core.shaders.glslCompability
+		#require core.shaders.visualizeHeat
+		#require core.shaders.lighting.tiled
+		VARYING_IN mediump vec2 vsTexcoord; VARYING_IN lowp vec4 vsColour;
+		uniform usamplerBuffer textures;
+		DEF_PIXEL_SHADER_OUT;
+		
+		void main() {
+			float invTileSize = 1.0/32.0;
+			mediump vec2 pos = gl_FragCoord.xy * vec2(invTileSize);
+			float xx = mod(pos.x,1.0);
+			float yy = mod(pos.y,1.0);
+			bool border = xx <= invTileSize || yy <= invTileSize;
+			uvec2 tile = lightingTiledGetTile(textures,invTileSize,40);
+			float intensity = float(tile.y)/100.0;
+			PIXEL_SHADER_OUT = (border? vec4(0.0,0.0,0.0,1.0) : vec4(visualizeHeat(intensity),1.0)) * vsColour;
 		}
 	
 

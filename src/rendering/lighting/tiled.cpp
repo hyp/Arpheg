@@ -12,17 +12,18 @@ namespace rendering {
 namespace lighting {
 
 enum {
-	kTileSize = 8
+	kTileSize = 32
 };
 
 TileGrid::TileGrid() {
-	static_assert (sizeof(Tile16) == 4,"");
+	static_assert (sizeof(Tile) == 4,"");
 
 	tiles = nullptr;
 	size_ = vec2i(0,0);
 	auto allocator= core::memory::globalAllocator();
 	
-	indexes = (LightIndex*)allocator->allocate(sizeof(LightIndex)*std::numeric_limits<LightIndex>::max(),alignof(vec4f));
+	//NB: 4MB preallocation.
+	indexes = (LightIndex*)allocator->allocate(sizeof(LightIndex)*kIndexBufferMaxSize,alignof(vec4f));
 	indexOffset = 0;
 }
 void TileGrid::updateViewport(const Viewport& viewport) {
@@ -46,7 +47,7 @@ void TileGrid::recreate(vec2i size) {
 	if(size_.y%tileSize_.y) tileCount_.y++;
 
 	if(tiles) allocator->deallocate(tiles);
-	tiles = (Tile16*)allocator->allocate(sizeof(Tile16)*tileCount_.x*tileCount_.y,alignof(vec4f));
+	tiles = (Tile*)allocator->allocate(sizeof(Tile)*tileCount_.x*tileCount_.y,alignof(vec4f));
 
 	using namespace core::bufferStringStream;
 	Formatter fmt;
@@ -54,10 +55,44 @@ void TileGrid::recreate(vec2i size) {
 	services::logging()->information(asCString(fmt.allocator));
 }
 core::Bytes TileGrid::tileBuffer() {
-	return core::Bytes(tiles,sizeof(Tile16)*size_t(tileCount_.x*tileCount_.y));
+	return core::Bytes(tiles,sizeof(Tile)*size_t(tileCount_.x*tileCount_.y));
 }
 core::Bytes TileGrid::indexBuffer() {
 	return core::Bytes(indexes,indexOffset*sizeof(LightIndex));
+}
+
+TileGrid::Tiler::Tiler(const Camera& camera,const Viewport& viewport) : cameraMatrix(camera.projectionView) {
+	screenCenter = vec4f(float(viewport.size.x)*0.5f,float(viewport.size.y)*0.5f,1.f,1.f);
+	viewSizeMinus1 = viewport.size - vec2i(1,1);
+	offset = 0;
+}
+void TileGrid::Tiler::tile(const vec4f& sphere,LightIndex lightId) {
+	vec4f vertices[8];
+	vec4f max ,min;
+
+	min = sphere - sphere.wwww();
+	max = sphere + sphere.wwww();
+	math::utils::gatherBoxVertices(vertices,min.xyz(),max.xyz());
+
+	for(uint32 i = 0;i<8;++i)
+		vertices[i] = cameraMatrix*vertices[i];
+
+	//Get 2D AABB in homogenous coords.
+	min = max = vertices[0] / vertices[0].wwww();
+	for(uint32 i = 1;i<8;++i){
+		auto hv = vertices[i] / vertices[i].wwww();
+		min = vec4f::min(min,hv);
+		max = vec4f::max(max,hv);
+	}
+
+	//Homogenous coords => viewport coords.
+	min = vec4f::fma(min,screenCenter,screenCenter);
+	max = vec4f::fma(max,screenCenter,screenCenter);
+	
+	lightAABB[offset].min[0] = std::max(int32(min.x),0); lightAABB[offset].min[1] = std::max(int32(min.y),0);
+	lightAABB[offset].max[0] = std::min(int32(max.x),viewSizeMinus1.x); lightAABB[offset].max[1] = std::min(int32(max.y),viewSizeMinus1.y);
+	lightIndex[offset] = lightId;
+	++offset;
 }
 
 static inline bool intersects(int32 tx,int32 ty,const TileGrid::LightAABB& lightRect){
@@ -79,15 +114,22 @@ static inline bool intersects(int32 tx,int32 ty,const TileGrid::LightAABB& light
 }
 
 // This is a naive tile assignment implementation.
-void TileGrid::spawnLightAssignmentTasks(LightAABB* screenSpaceLights,size_t lightCount) {
+void TileGrid::performLightAssignment(const Tiler& tiler) {
 	indexOffset = 0;
-	size_t idx = 0;
+	uint32 idx = 0;
+	size_t lightCount = tiler.offset;
+	auto screenSpaceLights = tiler.lightAABB;
+	auto indices = tiler.lightIndex;
 
 	assert(tiles);
 	assert(lightCount <= std::numeric_limits<LightIndex>::max());
 
 	for(int32 y = 0;y<tileCount_.y;++y){
-		auto ty = y*kTileSize;
+#ifdef ARPHEG_RENDERING_GL
+		auto ty = tileCount_.y*kTileSize - (y+1)*kTileSize;//OpenGL has y 0 at the bottom.
+#else
+		auto ty = (y)*kTileSize;
+#endif
 		auto tiles = this->tiles + y*tileCount_.x;
 	for(int32 x = 0;x<tileCount_.x;++x){
 		auto tx = x*kTileSize;
@@ -95,23 +137,21 @@ void TileGrid::spawnLightAssignmentTasks(LightAABB* screenSpaceLights,size_t lig
 		auto start = idx;
 		for(size_t i = 0;i< lightCount;++i){
 			if(intersects(tx,ty,screenSpaceLights[i])){
-				indexes[idx] = LightIndex(i);
+				indexes[idx] = indices[i];
 				++idx;
 			}
 		}
-		tiles[tx].offset = Index(start);
-		tiles[tx].count  = Index(idx - start);
+		auto count = idx - start;
+		tiles[x] = idx | (count<<20);
 	} }
 
-	assertRelease(idx <= std::numeric_limits<Index>::max() && "Tiled light index buffer overflowed uint16!");
-
+	assertRelease(idx <= kIndexBufferMaxSize && "Tiled light index buffer overflowed!");
 	indexOffset = idx;
 }
 
 void TileGrid::updateBuffers() {
 	assert(services::tasking()->isRenderingThread());
-
-	tileBuffer_ .update(texture::UINT_RG_1616,tileBuffer());
+	tileBuffer_ .update(texture::UINT_R_32,tileBuffer());
 	indexBuffer_.update(texture::UINT_R_16,indexBuffer());
 }
 
