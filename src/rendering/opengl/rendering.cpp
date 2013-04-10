@@ -421,10 +421,20 @@ namespace rendering {
 		assert(constant.coreTypeId == TMat44);
 		glUniformMatrix4fv(location,constant.count,false,(const GLfloat*)&matrix->a.x);
 	}
+	void Service::bindConstantSlot(Pipeline pipeline,const Pipeline::Constant& constant,uint32 slot){
+		//At least this is DSA! Thanks ARB..
+		auto loc = glGetUniformBlockIndex(pipeline.id,constant.name);
+		glUniformBlockBinding(pipeline.id,loc,slot);
+	}
+	void Service::bindConstantBuffer(Buffer data,uint32 slot,uint32 offset,uint32 size){
+		if(offset == 0 && size == 0)  glBindBufferBase(GL_UNIFORM_BUFFER,slot,data.id);
+		else glBindBufferRange(GL_UNIFORM_BUFFER,slot,data.id,offset,size);
+	}
+
 	void Service::bind(Pipeline::Constant& constant,Buffer data,size_t offset,size_t size) {
 		if(constant.location < 0){
 			if(constant.location == -2) return;
-			initUniform(currentPipeline,constant);
+			constant.location = glGetUniformBlockIndex(currentPipeline,constant.name);
 			if(constant.location == -2) return;
 		}
 

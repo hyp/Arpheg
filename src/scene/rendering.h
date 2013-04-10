@@ -4,6 +4,7 @@
 #include "../core/memory.h"
 #include "types.h"
 //#include "events.h"
+#include "../rendering/dynamicBuffer.h"
 #include "../rendering/frustumCulling.h"
 #include "../rendering/lighting/types.h"
 
@@ -151,11 +152,15 @@ namespace rendering {
 		void render(events::Draw& ev);
 		inline size_t renderedEntityCount() const;
 	private:
+		
 		bool visibleEntitiesInited;
 		size_t drawnEntities;
 		enum { kMaxActiveCameras = 4 };
 		uint32 activeCameras;
 		::rendering::Camera cameras[kMaxActiveCameras];
+		::rendering::DynamicConstantBuffer entityConstants;
+		core::BufferAllocator entityConstantStorage;
+		::rendering::DynamicConstantBuffer viewConstants;
 	};
 	inline size_t Service::renderedEntityCount() const { return drawnEntities; }
 } }

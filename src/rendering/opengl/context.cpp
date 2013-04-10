@@ -96,7 +96,7 @@ static bool isExtensionSupported(const char *extList, const char *extension) {
 
 static void initContext(Context* context){
 #ifndef ARPHEG_RENDERING_GLES
-	initDebugOutput(context);
+	initDebugOutput(context);	
 #endif
 }
 
@@ -148,6 +148,10 @@ static void initContext(Context* context){
 		if(major >= 4){
 			apiSupport |= GL4_tesselation;
 		}
+
+		GLint bufferOffsetAlignment;
+		glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT,&bufferOffsetAlignment);
+		uboOffsetAlignment_ = bufferOffsetAlignment;
 	}
 #else
 	void Context::checkApiSupport(){

@@ -43,6 +43,34 @@ shaderLibrary:
 shaderLibrary:
 	id = 'shaders.visualizeHeat'
 	path = 'shaderlib/visualizeHeat.glsl'
+	
+shaderLibrary:
+	id = 'shaders.quaternion'
+	path = 'shaderlib/quaternion.glsl'
+	
+shaderLibrary:
+	id = 'shaders.entity'
+	path = 'shaderlib/entity/entity.glsl'
+	
+shaderLibrary:
+	id = 'shaders.entity.constantBuffer'
+	path = 'shaderlib/entity/constantBuffer.glsl'
+	
+shaderLibrary:
+	id = 'shaders.view'
+	path = 'shaderlib/view/view.glsl'
+	
+shaderLibrary:
+	id = 'shaders.view.constantBuffer'
+	path = 'shaderlib/view/constantBuffer.glsl'
+	
+shaderLibrary:
+	id = 'shaders.vertexInput.mesh.static'
+	path = 'shaderlib/vertexInput/staticMesh.glsl'
+	
+shaderLibrary:
+	id = 'shaders.vertexInput.mesh.skinned'
+	path = 'shaderlib/vertexInput/skinnedMesh.glsl'
 
 pipeline:
 	id = 'rendering.debug.pipeline'

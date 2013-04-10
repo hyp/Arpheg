@@ -143,10 +143,12 @@ enum {
 struct VisibleEntity {
 	FrustumMask mask;
 	Entity* entity;
+	uint32 offset,size;
 };
 struct VisibleAnimatedEntity {
 	FrustumMask mask;
 	AnimatedEntity* entity;
+	uint32 offset,size;
 };
 struct VisibleCustomEntity {
 	FrustumMask mask;
@@ -202,7 +204,8 @@ struct VisibleLightEntity {
 };
 
 Service::Service(core::Allocator* alloc) :
-	skeletonAnimations_(sizeof(SkeletalAnimation)*1024,allocator(),core::BufferAllocator::GrowOnOverflow) 
+	skeletonAnimations_(sizeof(SkeletalAnimation)*1024,allocator(),core::BufferAllocator::GrowOnOverflow),
+	entityConstantStorage(1024*8,allocator(),core::BufferAllocator::GrowOnOverflow)
 {
 	//Entity pools.
 	entities_ = ALLOCATOR_NEW(alloc,EntityPool<Entity>) (1024*32,allocator());
@@ -253,6 +256,7 @@ void Service::servicePreStep() {
 	}
 	drawnEntities = 0;
 	lighting_->servicePreStep();
+	entityConstantStorage.reset();
 }
 
 static inline void storeTransform(EntityTransformation& transformation,const vec3f& position,const Quaternion& rotation,const vec3f& scale){
@@ -346,6 +350,7 @@ void Service::setActiveCameras(::rendering::Camera* cameras,size_t count) {
 		this->cameras[i] = cameras[i];
 	}
 }
+
 void Service::markVisibleEntity(const EntityGridCell* cell,FrustumMask mask,EntityId id) {
 	auto threadId = services::tasking()->threadId();
 	auto type = id.id >> kEntityTypeOffset;
@@ -363,7 +368,7 @@ void Service::markVisibleEntity(const EntityGridCell* cell,FrustumMask mask,Enti
 		entity->entity = animatedEntities_->toPtr(eid);
 		} break;
 	case kCustomEntity: {
-						} break;
+		} break;
 	case kLightEntity: {
 		//Lights are filtered separately.
 		auto entity = (VisibleLightEntity*)visibleLights_[threadId].allocate(sizeof(VisibleLightEntity));
@@ -431,6 +436,7 @@ void Service::spawnFrustumCullingTasks() {
 void Service::transferLightData() {
 	lighting_->transferData();
 }
+
 static inline void getMatrices(const EntityTransformation& transformation,mat44f& world){
 	Quaternion rotation(vec4f::load(transformation.rotation));
 	vec3f translation(transformation.translation[0],transformation.translation[1],transformation.translation[2]);
@@ -447,12 +453,56 @@ void Service::render(events::Draw& ev){
 	auto frustumMask = 1<<(0);
 	assert(services::tasking()->isRenderingThread());
 
+	struct VV {
+		mat44f view;
+		vec4f t;
+	};
+	VV view = { cameras[0].view,cameras[0].view.d };
+	viewConstants.update(core::Bytes(&view,sizeof(view)));
+
 	for(size_t i = 0;i< services::tasking()->threadCount();++i){
 		for(VisibleEntity* ent = begin<VisibleEntity>(visibleEntities_[i]),*entend = end<VisibleEntity>(visibleEntities_[i]);ent<entend;++ent){
 			if(ent->mask & frustumMask){
 				auto entity = ent->entity;
-				getMatrices(entity->transformation,ev.entityGlobalTransformation);
-				ev.meshRenderer->draw(ev,entity->mesh,entity->material);
+				mat44f world; 
+				getMatrices(entity->transformation,world);
+				world = cameras[0].calculateMvp(world);
+				float* dest = (float*)entityConstantStorage.allocate(sizeof(mat44f) + sizeof(vec4f)*3,0);
+				ent->offset = entityConstantStorage.toOffset(dest);
+				ent->size = sizeof(mat44f)+sizeof(vec4f)*3;
+				((mat44f*)dest)[0] = world;
+				dest+=16;
+				vec4f::load(entity->transformation.scaling).store(dest);dest+=4;
+				vec4f::load(entity->transformation.rotation).store(dest);dest+=4;
+				vec4f::load(entity->transformation.translation).store(dest);dest+=4;
+				entityConstantStorage.allocate(services::rendering()->context()->constantBufferOffsetAlignment() - (sizeof(mat44f) + sizeof(vec4f)*3),0);
+			}
+		}
+		for(VisibleAnimatedEntity* ent = begin<VisibleAnimatedEntity>(visibleAnimatedEntities_[i]),*entend = end<VisibleAnimatedEntity>(visibleAnimatedEntities_[i]);
+			ent<entend;++ent){
+				auto entity = ent->entity;
+				mat44f world; 
+				getMatrices(entity->transformation,world);
+				world = cameras[0].calculateMvp(world);
+				float* dest = (float*)entityConstantStorage.allocate(sizeof(mat44f) + sizeof(vec4f)*3,0);
+				ent->offset = entityConstantStorage.toOffset(dest);
+				ent->size = sizeof(mat44f)+sizeof(vec4f)*3;
+				((mat44f*)dest)[0] = world;
+				dest+=16;
+				vec4f::load(entity->transformation.scaling).store(dest);dest+=4;
+				vec4f::load(entity->transformation.rotation).store(dest);dest+=4;
+				vec4f::load(entity->transformation.translation).store(dest);dest+=4;
+				entityConstantStorage.allocate(services::rendering()->context()->constantBufferOffsetAlignment() - (sizeof(mat44f) + sizeof(vec4f)*3),0);
+		}
+	}
+	entityConstants.update(core::Bytes(entityConstantStorage.bufferBase(),entityConstantStorage.size()));
+
+	for(size_t i = 0;i< services::tasking()->threadCount();++i){
+		for(VisibleEntity* ent = begin<VisibleEntity>(visibleEntities_[i]),*entend = end<VisibleEntity>(visibleEntities_[i]);ent<entend;++ent){
+			if(ent->mask & frustumMask){
+				auto entity = ent->entity;
+	
+				ev.meshRenderer->draw(ev,viewConstants.buffer,entityConstants.buffer,ent->offset,ent->size,entity->mesh,entity->material);
 				drawnEntities++;
 
 				drawFrustumShape(entityGrid_,entity->cullId);
@@ -462,9 +512,8 @@ void Service::render(events::Draw& ev){
 			ent<entend;++ent){
 			if(ent->mask & frustumMask){
 				auto entity = ent->entity;
-				getMatrices(entity->transformation,ev.entityGlobalTransformation);
 				auto anim = getSkeletalAnimation(skeletonAnimations_,entity);
-				ev.meshRenderer->draw(ev,entity->mesh,entity->material,anim->transformations,anim->nodeCount);
+				ev.meshRenderer->draw(ev,viewConstants.buffer,entityConstants.buffer,ent->offset,ent->size,entity->mesh,entity->material,anim->transformations,anim->nodeCount);
 				drawnEntities++;
 				
 				drawFrustumShape(entityGrid_,entity->cullId);

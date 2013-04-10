@@ -1,26 +1,42 @@
-//Phong lighting
+//Blinn Phong lighting
 
-vec3 lightingPhongEvalDirectional(Light light,vec3 normal,vec3 viewVector,vec3 materialDiffuse,vec3 materialSpecular,float materialShininess){
-	vec3 lightVec = light.position.xyz;
-	float diffuseTerm = max(0.0,dot(normal,lightVec));
-	vec3 refl = -normalize(reflect(lightVec,normal));
-	float specularTerm = pow(max(dot(refl, viewVector), 0.0), materialShininess);
-	return (materialDiffuse * diffuseTerm + materialSpecular * specularTerm) * (light.colour.xyz) + materialDiffuse * light.attenuation.xyz;
+float fresnelReflectance( vec3 H, vec3 V, float F0 ) {
+  float base = 1.0 - dot( V, H );
+  float exponential = pow( base, 5.0 );
+  return mix(F0,1.0,exponential);
+  //return exponential + F0 * ( 1.0 - exponential );
 }
-vec3 lightingPhongEvalPointCone(Light light,vec3 position,vec3 normal,vec3 viewVector,vec3 materialDiffuse,vec3 materialSpecular,float materialShininess){
-	vec3 diff = light.position.xyz - position;
+
+vec3 lightingPhongEvalDirectional(const Light light,const vec3 surfaceNormal,const vec3 directionToEye,const vec3 materialDiffuse,const vec3 materialSpecular,const float materialShininess){
+	vec3 directionToLight = light.position.xyz;
+	float diffuseTerm = max(dot(surfaceNormal,directionToLight),0.0);
+	
+	vec3 halfVector = normalize(directionToLight + directionToEye);
+	float specularTerm = pow( max(dot(surfaceNormal,halfVector),0.0) , materialShininess);
+    float w = pow(1.0 - max(0.0, dot(directionToEye,halfVector)), 5.0);
+    vec3 specularReflection =  mix(materialSpecular, vec3(1.0), w) * specularTerm;
+
+	return (materialDiffuse * diffuseTerm + specularReflection) * (light.colour.xyz) + materialDiffuse * light.attenuation.xyz;
+}
+vec3 lightingPhongEvalPointCone(const Light light,const vec3 surfacePosition,const vec3 surfaceNormal,const vec3 directionToEye,const vec3 materialDiffuse,const vec3 materialSpecular,const float materialShininess){
+	vec3 diff = light.position.xyz - surfacePosition;
 	float dist = length(diff);
-	vec3 lightVec = diff*(1.0/dist);
-	float diffuseTerm = max(0.0,dot(normal,lightVec));
+	vec3 directionToLight = diff*(1.0/dist);
+	float diffuseTerm = max(dot(surfaceNormal,directionToLight),0.0);
+	
+	vec3 halfVector = normalize(directionToLight + directionToEye);
+	float specularTerm = pow( max(dot(surfaceNormal,halfVector),0.0) , materialShininess);
+    float w = pow(1.0 - max(0.0, dot(directionToEye,halfVector)), 5.0);
+    vec3 specularReflection =  mix(materialSpecular, vec3(1.0), w) * specularTerm;
+	
+	float attenuationFactor = max(0.0,1.0/(light.attenuation.x+light.attenuation.y*dist+light.attenuation.z*dist*dist));
+	
 	float spotlightTerm = 1.0;
 	if(light.colour.w > 0.0){
-		spotlightTerm = max(-dot(lightVec, light.direction.xyz), 0.0);
+		spotlightTerm = max(-dot(directionToLight, light.direction.xyz), 0.0);
         spotlightTerm = spotlightTerm *  clamp((light.colour.w - spotlightTerm) / (light.colour.w - light.attenuation.w), 0.0, 1.0);
         spotlightTerm = pow(spotlightTerm, light.direction.w);
 	}
-	vec3 refl = -normalize(reflect(lightVec,normal));
-	float specularTerm = pow(max(dot(refl, viewVector), 0.0), materialShininess);
-	float attenuationFactor = max(0.0,1.0/(light.attenuation.x+light.attenuation.y*dist+light.attenuation.z*dist*dist));
 	
-	return (materialDiffuse * diffuseTerm + materialSpecular * specularTerm) * (light.colour.xyz * (spotlightTerm * attenuationFactor));
+	return (materialDiffuse * diffuseTerm + specularReflection) * (light.colour.xyz * (spotlightTerm * attenuationFactor));
 }

@@ -58,6 +58,7 @@ int main(){
 	ui::TextureView tview;
 	ui::FillLayout tlayout;
 	ui::Widget depthView;depthView.addComponent(&tview);depthView.addComponent(&tlayout);
+	depthView.hide();
 	services::ui()->root()->addChild(&depthView);
 
 

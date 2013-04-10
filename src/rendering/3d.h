@@ -19,8 +19,8 @@ public:
 	DirectMeshRenderer();
 	void servicePreStep();
 	
-	void draw(const scene::events::Draw& ev,const data::SubMesh* mesh,const data::Material* material); 
-	void draw(const scene::events::Draw& ev,const data::SubMesh* mesh,const data::Material* material,const data::Transformation3D* transforms,uint32 count);
+	void draw(const scene::events::Draw& ev,::rendering::Buffer view,::rendering::Buffer buffer,uint32 offset,uint32 size,const data::SubMesh* mesh,const data::Material* material); 
+	void draw(const scene::events::Draw& ev,::rendering::Buffer view,::rendering::Buffer buffer,uint32 offset,uint32 size,const data::SubMesh* mesh,const data::Material* material,const data::Transformation3D* transforms,uint32 count);
 	void bind(const Camera& camera);
 	void bind(data::Pipeline* pipeline,data::Pipeline* anim);
 private:

@@ -42,8 +42,8 @@ namespace events {
 	};
 	class IMeshRenderer {
 	public:
-		virtual void draw(const Draw& ev,const data::SubMesh* mesh,const data::Material* material) = 0;
-		virtual void draw(const Draw& ev,const data::SubMesh* mesh,const data::Material* material,const data::Transformation3D* transforms,uint32 count) = 0;
+		virtual void draw(const Draw& ev,::rendering::Buffer view,::rendering::Buffer buffer, uint32 offset,uint32 size,const data::SubMesh* mesh,const data::Material* material) = 0;
+		virtual void draw(const Draw& ev,::rendering::Buffer view,::rendering::Buffer buffer, uint32 offset,uint32 size,const data::SubMesh* mesh,const data::Material* material,const data::Transformation3D* transforms,uint32 count) = 0;
 	};
 }
 

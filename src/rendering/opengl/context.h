@@ -44,7 +44,10 @@ public:
 	bool extensionSupported(uint32 extension);
 	void* getProcAddress(const char* str);
 
-	//API support
+	// API gimmicks.
+	inline uint32 constantBufferOffsetAlignment() const;
+
+	// API support
 	inline bool geometryShadersSupported() const;
 	inline bool tesselationSupported()  const;
 
@@ -58,6 +61,7 @@ public:
 private:
 	uint32 apiSupport;
 	uint32 extCheck,extSupport;
+	uint32 uboOffsetAlignment_;
 	void* data[2];
 	vec2i version_;
 	bool vsync_;
@@ -65,6 +69,7 @@ private:
 };
 
 inline vec2i Context::version() const { return version_; }
+inline uint32 Context::constantBufferOffsetAlignment() const { return uboOffsetAlignment_; }
 inline bool Context::geometryShadersSupported() const { return (apiSupport & support::GL3_geometry_shaders)!=0; }
 inline bool Context::tesselationSupported() const { return (apiSupport & support::GL4_tesselation)!=0; } 
 

@@ -78,6 +78,13 @@ namespace rendering {
 		void bind(Pipeline::Constant& constant,const mat44f* matrix);
 		void bind(Pipeline::Constant& constant,Buffer data,size_t offset = 0,size_t size = 0);
 		
+		//Associates a named constant buffer in the pipeline with the given slot
+		void bindConstantSlot(Pipeline pipeline,const Pipeline::Constant& constant,uint32 slot);
+		//Binds the specified constant buffer at the current slot for the specified(OpenGL all) stages.
+		//TODO stage parameter for DX11 compability.
+		void bindConstantBuffer(Buffer data,uint32 slot,uint32 offset = 0,uint32 size = 0);
+
+		
 		inline void bind(TextureBuffer texture,uint32 slot = 0);
 		inline void bind(Texture1D texture,uint32 slot = 0);
 		inline void bind(Texture2D texture,uint32 slot = 0);

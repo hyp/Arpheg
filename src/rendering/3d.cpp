@@ -65,12 +65,19 @@ void DirectMeshRenderer::draw(const scene::events::Draw& ev,const scene::compone
 		drawSubmesh(subs[i].material,subs[i].mesh);
 	}
 }*/
-void DirectMeshRenderer::draw(const scene::events::Draw& ev,const data::SubMesh* mesh,const data::Material* material) {
+void DirectMeshRenderer::draw(const scene::events::Draw& ev,::rendering::Buffer view,::rendering::Buffer buffer,uint32 offset,uint32 size,const data::SubMesh* mesh,const data::Material* material) {
+	services::rendering()->bindConstantSlot(staticMesh_,rendering::Pipeline::Constant("objects"),0);
+	services::rendering()->bindConstantSlot(staticMesh_,rendering::Pipeline::Constant("view"),1);
+
 	services::rendering()->bind(staticMesh_);
-	services::rendering()->bind(*mvp,camera_.calculateMvp(ev.entityGlobalTransformation));
+	services::rendering()->bindConstantBuffer(buffer,0,offset,size);
+	services::rendering()->bindConstantBuffer(view,1);
 	drawSubmesh(material,mesh);
 }
-void DirectMeshRenderer::draw(const scene::events::Draw& ev,const data::SubMesh* mesh,const data::Material* material,const data::Transformation3D* transforms,uint32 count) {
+void DirectMeshRenderer::draw(const scene::events::Draw& ev,::rendering::Buffer view,::rendering::Buffer buffer,uint32 offset,uint32 size,const data::SubMesh* mesh,const data::Material* material,const data::Transformation3D* transforms,uint32 count) {
+	services::rendering()->bindConstantSlot(animatedMesh_,rendering::Pipeline::Constant("objects"),0);
+	services::rendering()->bindConstantSlot(animatedMesh_,rendering::Pipeline::Constant("view"),1);
+
 	services::rendering()->bind(animatedMesh_);
 	services::rendering()->bind(*amvp,camera_.calculateMvp(ev.entityGlobalTransformation));
 
@@ -78,6 +85,8 @@ void DirectMeshRenderer::draw(const scene::events::Draw& ev,const data::SubMesh*
 	rendering::animation::Animator::bindSkeleton(mesh,count,transforms,jointTransformations);
 	rendering::Pipeline::Constant c("boneMatrices");
 	services::rendering()->bind(c,(void*)jointTransformations);
+	services::rendering()->bindConstantBuffer(buffer,0,offset,size);
+	services::rendering()->bindConstantBuffer(view,1);
 
 	drawSubmesh(material,mesh);
 }
