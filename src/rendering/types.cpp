@@ -9,18 +9,25 @@ namespace rendering {
 		view = viewMatrix;
 		projectionView = projection * view;
 	}
-	void Light::makeDirectional(vec3f direction,vec3f diffuse,vec3f specular,vec3f ambient){
+	void Light::makeDirectional(vec3f direction,vec3f diffuse,vec3f ambient){
 		parameterStorage_[0] = vec4f(direction.x,direction.y,direction.z,0.0f);
 		parameterStorage_[1] = vec4f(diffuse.x,diffuse.y,diffuse.z,0.0f);
-		parameterStorage_[2] = vec4f(specular.x,specular.y,specular.z,0.0f);
-		parameterStorage_[3] = vec4f(ambient.x,ambient.y,ambient.z,0.0f);
+		parameterStorage_[2] = vec4f(ambient.x,ambient.y,ambient.z,0.0f);
+		parameterStorage_[3] = vec4f(0.0f);
 	}
-	void Light::makePoint(vec3f position,vec3f diffuse,vec3f specular,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation){
+	void Light::makePoint(vec3f position,vec3f diffuse,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation){
 		assert(radius > 0.0f);
 		parameterStorage_[0] = vec4f(position.x,position.y,position.z,radius);
 		parameterStorage_[1] = vec4f(diffuse.x,diffuse.y,diffuse.z,0.0f);
-		parameterStorage_[2] = vec4f(specular.x,specular.y,specular.z,0.0f);
-		parameterStorage_[3] = vec4f(constantAttenuation,linearAttenuation,quadraticAttenuation,ambient.x);
+		parameterStorage_[2] = vec4f(constantAttenuation,linearAttenuation,quadraticAttenuation,ambient.x);
+		parameterStorage_[3] = vec4f(0.0f);
+	}
+	void Light::makeSpotLight  (vec3f position,vec3f direction,vec3f diffuse,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation,float innerCutoff,float outerCutoff){
+		assert(radius > 0.0f);
+		parameterStorage_[0] = vec4f(position.x,position.y,position.z,radius);
+		parameterStorage_[1] = vec4f(diffuse.x,diffuse.y,diffuse.z,outerCutoff);
+		parameterStorage_[2] = vec4f(constantAttenuation,linearAttenuation,quadraticAttenuation,ambient.x);
+		parameterStorage_[3] = vec4f(direction.x,direction.y,direction.z,innerCutoff);
 	}
 
 namespace blending {

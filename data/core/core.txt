@@ -29,9 +29,17 @@ shaderLibrary:
 	path = 'shaderlib/constants.h'
 	
 shaderLibrary:
-	id = 'shaders.lighting.tiled'
-	path = 'shaderlib/lightingTiled.glsl'
+	id = 'shaders.lighting.types'
+	path = 'shaderlib/lighting/types.glsl'
 
+shaderLibrary:
+	id = 'shaders.lighting.tiled'
+	path = 'shaderlib/lighting/tiled.glsl'
+
+shaderLibrary:
+	id = 'shaders.lighting.phong'
+	path = 'shaderlib/lighting/phong.glsl'
+	
 shaderLibrary:
 	id = 'shaders.visualizeHeat'
 	path = 'shaderlib/visualizeHeat.glsl'

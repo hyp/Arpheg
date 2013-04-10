@@ -121,7 +121,7 @@ int main(){
 	for(int z = 0;z<5;++z){
 		rendering::Light light;
 		light.makePoint(vec3f(float(x)*2.0f,float(y)*2.0f,float(z)*2.0f) + vec3f(0.5,0.5,0.5),
-			vec3f(1,1,1),vec3f(1,1,1),vec3f(0.2,0.2,0.2),2.0,0.1,0.5,0.8);
+			vec3f(1,1,1),vec3f(0.2,0.2,0.2),2.0,0.1,0.5,0.8);
 		services::sceneRendering()->createLight(light);
 	} } }
 	application::profiling::Timer profTileLightAssignment("Tile light assignment");
@@ -129,6 +129,7 @@ int main(){
 	ui::TextureView tview2;
 	tview2.color_ = 0xA0FFFFFF;
 	ui::Widget lightTileView;lightTileView.addComponent(&tview2);lightTileView.addComponent(&tlayout);
+	lightTileView.hide();
 	services::ui()->root()->addChild(&lightTileView);
 
 	while(!services::application()->quitRequest()){

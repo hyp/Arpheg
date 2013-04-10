@@ -49,9 +49,9 @@ namespace rendering {
 
 		vec4f parameterStorage_[kConstantsVec4fCount];
 		
-		void makeDirectional(vec3f direction,vec3f diffuse,vec3f specular,vec3f ambient);
-		void makePoint      (vec3f position,vec3f diffuse,vec3f specular,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation);
-		//TODO void makeSpotLight  ();
+		void makeDirectional(vec3f direction,vec3f diffuse,vec3f ambient);
+		void makePoint      (vec3f position,vec3f diffuse,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation);
+		void makeSpotLight  (vec3f position,vec3f direction,vec3f diffuse,vec3f ambient,float radius,float constantAttenuation,float linearAttenuation,float quadraticAttenuation,float innerCutoff,float outerCutoff);
 		
 		inline bool isPoint() const;
 		inline bool isSpotLight() const;
