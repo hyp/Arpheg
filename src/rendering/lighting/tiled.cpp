@@ -91,6 +91,8 @@ void TileGrid::Tiler::tile(const vec4f& sphere,LightIndex lightId) {
 	
 	lightAABB[offset].min[0] = std::max(int32(min.x),0); lightAABB[offset].min[1] = std::max(int32(min.y),0);
 	lightAABB[offset].max[0] = std::min(int32(max.x),viewSizeMinus1.x); lightAABB[offset].max[1] = std::min(int32(max.y),viewSizeMinus1.y);
+	auto area = (lightAABB[offset].max[0] - lightAABB[offset].min[0])*(lightAABB[offset].max[1] - lightAABB[offset].min[1]);
+	if(area < (32*32)) return;
 	lightIndex[offset] = lightId;
 	++offset;
 }
@@ -127,12 +129,13 @@ void TileGrid::performLightAssignment(const Tiler& tiler) {
 	uint16 rowCounters[256];
 	assertRelease(tileCount_.x < 255);
 
+	maxLightsPerTile_ = 0;
 	for(int32 y = 0;y<tileCount_.y;++y){
-#ifdef ARPHEG_RENDERING_GL
-		auto ty = tileCount_.y*kTileSize - (y+1)*kTileSize;//OpenGL has y 0 at the bottom.
-#else
+//#ifdef ARPHEG_RENDERING_GL
+//		auto ty = tileCount_.y*kTileSize - (y+1)*kTileSize;//OpenGL has y 0 at the bottom.
+//#else
 		auto ty = (y)*kTileSize;
-#endif
+//#endif
 		
 		for(int32 x = 0;x<tileCount_.x;++x){
 			rowCounters[x] = 0;
@@ -160,6 +163,7 @@ void TileGrid::performLightAssignment(const Tiler& tiler) {
 			auto count = uint32(rowCounters[x]);
 			tiles[x] = idx | (count<<20);
 			idx+=count;
+			maxLightsPerTile_ = std::max(maxLightsPerTile_,count);
 			rowCounters[x] = 0;
 		}
 		for(size_t i = 0;i< rowLightCount;i++){
@@ -171,6 +175,7 @@ void TileGrid::performLightAssignment(const Tiler& tiler) {
 			}
 		}
 	}
+
 
 	assertRelease(idx <= kIndexBufferMaxSize && "Tiled light index buffer overflowed!");
 	indexOffset = idx;

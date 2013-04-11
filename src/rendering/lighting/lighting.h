@@ -23,12 +23,14 @@ public:
 	void transferData();
 
 	inline size_t maxActiveLights() const;
-	inline Buffer lights() const;
+	inline Buffer lightBuffer() const;
 	inline TileGrid* tileGrid(uint32 i) const;
-private:
+	inline Light* lights() const;
+public:
 	Light* lightsData_;
 	uint16 lightCount,lightMax;
 	DynamicConstantBuffer lights_;
+	//DynamicBufferTexture tlights_;
 	TileGrid* tileGrids;
 	uint32 tileGridCount;
 	void createTileGrids(Viewport* viewports,uint32 count);
@@ -36,8 +38,9 @@ private:
 	uint8 tileGridStorage_[sizeof(TileGrid)*(kMaxActiveViewports+1)];
 };
 
-inline Buffer Service::lights() const { return lights_.buffer; }
+inline Buffer Service::lightBuffer() const { return lights_.buffer; }
 inline TileGrid* Service::tileGrid(uint32 i) const { return tileGrids + i; }
 inline size_t Service::maxActiveLights() const { return size_t(lightMax); }
+inline Light* Service::lights() const { return lightsData_; }
 
 } }

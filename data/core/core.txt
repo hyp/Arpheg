@@ -41,6 +41,10 @@ shaderLibrary:
 	path = 'shaderlib/lighting/phong.glsl'
 	
 shaderLibrary:
+	id = 'shaders.lighting.orenNayar'
+	path = 'shaderlib/lighting/orenNayer.glsl'
+	
+shaderLibrary:
 	id = 'shaders.visualizeHeat'
 	path = 'shaderlib/visualizeHeat.glsl'
 	
@@ -71,6 +75,10 @@ shaderLibrary:
 shaderLibrary:
 	id = 'shaders.vertexInput.mesh.skinned'
 	path = 'shaderlib/vertexInput/skinnedMesh.glsl'
+	
+shaderLibrary:
+	id = 'shaders.depth.unchanged'
+	path = 'shaderlib/depth/unchanged.glsl'
 
 pipeline:
 	id = 'rendering.debug.pipeline'

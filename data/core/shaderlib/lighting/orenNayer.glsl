@@ -18,6 +18,6 @@ vec3 lightingOrenNayerEval(const vec3 directionToLight,const vec3 surfaceNormal,
 	float roughnessSquared = materialRoughness*materialRoughness;
 	float A = 1.0 - 0.5 * (roughnessSquared / (roughnessSquared + 0.33));
 	float B = 0.45 * (roughnessSquared / (roughnessSquared + 0.09));
-	float diffuseTerm = max(0.0, NdotL) * (A + B * max(0.0, gamma) * C);
+	float diffuseTerm = max(0.0, NdotL) * (B * max(0.0, gamma) * C + A);
 	return materialDiffuse * diffuseTerm;
 }

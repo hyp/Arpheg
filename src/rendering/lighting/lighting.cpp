@@ -52,7 +52,18 @@ void Service::transferData() {
 	for(uint32 i =0;i<tileGridCount;++i){
 		tileGrids[i].updateBuffers();
 	}
-	lights_.update(core::Bytes(lightsData_,lightCount*sizeof(Light)));
+	struct GPUlight {
+		vec4f a,b;
+	};
+	GPUlight lights[128];
+	for(uint32 i = 0;i<lightCount;++i){
+		lights[i].a = lightsData_[i].parameterStorage_[0];
+		lights[i].a.w = lightsData_[i].parameterStorage_[2].x;
+		lights[i].b = lightsData_[i].parameterStorage_[1];
+		lights[i].b.w = lightsData_[i].parameterStorage_[2].z;
+	}
+	lights_.update(core::Bytes(lights,256*sizeof(GPUlight)));
+	//tlights_.update(texture::FLOAT_RGBA_32323232,core::Bytes(lightsData_,128*sizeof(Light)));
 }
 
 } }

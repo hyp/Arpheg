@@ -30,7 +30,7 @@ vec3 lightingBlinnPhongFresnelEval(const vec3 directionToLight,const vec3 surfac
 	vec3 specularReflection = specular;\
 	dest = (diffuseReflection + specularReflection) * (light.colour.xyz) + materialDiffuse * light.attenuation.xyz;
 
-#define LIGHT_POINTCONE(dest,light,surfacePosition,materialDiffuse,diffuse,specular)\
+#define LIGHT_POINT(dest,light,surfacePosition,materialDiffuse,diffuse,specular)\
 	vec3 diff = light.position.xyz - surfacePosition; \
 	float dist = length(diff); \
 	vec3 directionToLight = diff*(1.0/dist); \
@@ -38,23 +38,23 @@ vec3 lightingBlinnPhongFresnelEval(const vec3 directionToLight,const vec3 surfac
 	vec3 specularReflection = specular; \
 	float attenuationFactor = max(0.0,1.0/(light.attenuation.x+light.attenuation.y*dist+light.attenuation.z*dist*dist)); \
 	float spotlightTerm = 1.0; \
-	if(light.colour.w > 0.0){ \
+	dest = (diffuseReflection + specularReflection) * (light.colour.xyz * (spotlightTerm * attenuationFactor));
+	/*if(light.colour.w > 0.0){ \
 		spotlightTerm = max(-dot(directionToLight, light.direction.xyz), 0.0); \
         spotlightTerm = spotlightTerm *  clamp((light.colour.w - spotlightTerm) / (light.colour.w - light.attenuation.w), 0.0, 1.0); \
         spotlightTerm = pow(spotlightTerm, light.direction.w); \
-	}	\
-	dest = (diffuseReflection + specularReflection) * (light.colour.xyz * (spotlightTerm * attenuationFactor));
+	}	\*/
 	
-vec3 lightingPhongEvalDirectional(const Light light,const vec3 surfaceNormal,const vec3 directionToEye,const vec3 materialDiffuse,const vec3 materialSpecular,const float materialShininess){
+vec3 lightingBlinnPhongEvalDirectional(const Light light,const vec3 surfaceNormal,const vec3 directionToEye,const vec3 materialDiffuse,const vec3 materialSpecular,const float materialShininess){
 	vec3 dest;
 	LIGHT_DIRECTIONAL(dest,light,surfaceNormal,materialDiffuse,
 	lightingLambertEval(directionToLight,surfaceNormal,materialDiffuse),
 	lightingBlinnPhongFresnelEval(directionToLight,surfaceNormal,directionToEye,materialSpecular,materialShininess));
 	return dest;
 }
-vec3 lightingPhongEvalPointCone(const Light light,const vec3 surfacePosition,const vec3 surfaceNormal,const vec3 directionToEye,const vec3 materialDiffuse,const vec3 materialSpecular,const float materialShininess){
+vec3 lightingBlinnPhongEvalPoint(const Light light,const vec3 surfacePosition,const vec3 surfaceNormal,const vec3 directionToEye,const vec3 materialDiffuse,const vec3 materialSpecular,const float materialShininess){
 	vec3 dest;
-	LIGHT_POINTCONE(dest,light,surfacePosition,materialDiffuse,
+	LIGHT_POINT(dest,light,surfacePosition,materialDiffuse,
 	lightingLambertEval(directionToLight,surfaceNormal,materialDiffuse),
 	lightingBlinnPhongFresnelEval(directionToLight,surfaceNormal,directionToEye,materialSpecular,materialShininess));
 	return dest;

@@ -455,9 +455,9 @@ void Service::render(events::Draw& ev){
 
 	struct VV {
 		mat44f view;
-		vec4f t;
+		float oneOverTileX;int tileWidths;int maxTiles;
 	};
-	VV view = { cameras[0].view,cameras[0].view.d };
+	VV view = { cameras[0].view,1.0f/32.0f,40,lighting_->tileGrid(0)->maxLightsPerTile()};
 	viewConstants.update(core::Bytes(&view,sizeof(view)));
 
 	for(size_t i = 0;i< services::tasking()->threadCount();++i){

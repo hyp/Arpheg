@@ -48,6 +48,7 @@ public:
 
 	inline TextureBuffer tileBufferTexture()  const;
 	inline TextureBuffer indexBufferTexture() const;
+	inline uint32 maxLightsPerTile() const;
 private:
 	void recreate(vec2i size);
 
@@ -56,10 +57,12 @@ private:
 	Tile* tiles;
 	LightIndex* indexes;
 	size_t indexOffset;
+	uint32 maxLightsPerTile_;
 
 	DynamicBufferTexture tileBuffer_,indexBuffer_;
 };
 inline TextureBuffer TileGrid::tileBufferTexture()  const { return tileBuffer_.textureView;  }
 inline TextureBuffer TileGrid::indexBufferTexture() const { return indexBuffer_.textureView; }
+inline uint32 TileGrid::maxLightsPerTile() const { return maxLightsPerTile_; }
 
 } }

@@ -44,7 +44,7 @@ namespace rendering {
 
 	//A light stored in the hardware ready format.
 	struct Light {
-		enum { kConstantsVec4fCount = 4 };
+		enum { kConstantsVec4fCount = 3 };
 		enum { kConstantsSize = kConstantsVec4fCount*sizeof(vec4f) };
 
 		vec4f parameterStorage_[kConstantsVec4fCount];

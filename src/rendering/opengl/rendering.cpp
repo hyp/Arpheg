@@ -424,6 +424,7 @@ namespace rendering {
 	void Service::bindConstantSlot(Pipeline pipeline,const Pipeline::Constant& constant,uint32 slot){
 		//At least this is DSA! Thanks ARB..
 		auto loc = glGetUniformBlockIndex(pipeline.id,constant.name);
+		if(loc == GL_INVALID_INDEX) return;
 		glUniformBlockBinding(pipeline.id,loc,slot);
 	}
 	void Service::bindConstantBuffer(Buffer data,uint32 slot,uint32 offset,uint32 size){

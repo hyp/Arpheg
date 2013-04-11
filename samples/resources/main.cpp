@@ -20,6 +20,9 @@
 #include "../../src/rendering/lighting/lighting.h"
 #include "../../src/rendering/opengl/gl.h"
 
+		static float totalFps = 0.0f;
+		static int totalC = 0;
+
 int main(){
 
 	services::init();
@@ -104,7 +107,7 @@ int main(){
 	application::profiling::Timer profRasterizeTiles("Rasterize Tiles");
 	application::profiling::Timer profQuery("Query occlusion");
 
-	float cam = -3.f;
+	float cam = 5.f;
 	float anim = 0.f;
 
 	auto ent = services::sceneRendering()->create(foo,foo->submesh(0)->material(),vec3f(20,0,0),Quaternion::identity(),vec3f(1.0f,2.0f,1.0f));
@@ -117,12 +120,13 @@ int main(){
 	} } }
 	application::profiling::Timer profAnim("Animation interpolation");
 
-	for(int x = 0;x<5;++x){
-	for(int y = 0;y<5;++y){
-	for(int z = 0;z<5;++z){
+	for(int x = 0;x<2;x++){
+	for(int y = 0;y<2;y++){
+	for(int z = 0;z<2;z++){
 		rendering::Light light;
+		vec3f colour = vec3f(1.0,1.0,1.0);
 		light.makePoint(vec3f(float(x)*2.0f,float(y)*2.0f,float(z)*2.0f) + vec3f(0.5,0.5,0.5),
-			vec3f(1,1,1),vec3f(0.2,0.2,0.2),2.0,0.1,0.5,0.8);
+			colour,vec3f(0.0,0.0,0.0),4.0,0.1,0.0,0.5);
 		services::sceneRendering()->createLight(light);
 	} } }
 	application::profiling::Timer profTileLightAssignment("Tile light assignment");
@@ -144,6 +148,10 @@ int main(){
 		}
 		if(services::input()->isPressed(input::keyboard::Down)){
 			cam+=1.6f*services::timing()->dt();
+		}
+		if(services::input()->isPressed('Q')){
+			if(lightTileView.isVisible()) lightTileView.hide(); else lightTileView.show();
+			services::input()->releaseKey('Q');
 		}
 
 		rendering::Viewport viewport;
@@ -193,7 +201,7 @@ int main(){
 
 		//vis = depthBuffer.testAABB(vec3f(0.5,1.5,1.5),vec3f(0.75,1.75,1.75));
 		
-		auto animator = services::animation();
+		/*auto animator = services::animation();
 		auto nodes = animator->transformationBuffer().allocate(mesh->skeletonNodeCount());
 		anim+=services::timing()->dt();
 		rendering::animation::Animator::animate(mesh,animation,anim,nodes);
@@ -218,7 +226,7 @@ int main(){
 
 			renderer->bind(submesh->mesh(),submesh->primitiveKind(),submesh->indexSize());
 			//renderer->drawIndexed(submesh->primitiveOffset(),submesh->primitiveCount());
-		}
+		}*/
 
 		rendering::DirectMeshRenderer dmr;
 		dmr.bind(camera);
@@ -235,8 +243,10 @@ int main(){
 		services::sceneRendering()->spawnLightProcessingTasks();
 		profTileLightAssignment.end();
 		services::sceneRendering()->transferLightData();
+		glEnable(GL_CULL_FACE);
 		services::sceneRendering()->render(ev);
-		
+		///(GL_CULL_FACE);
+
 		auto t = services::sceneRendering()->lighting_->tileGrid(0)->tileBufferTexture();
 		tview2.texture_.id = t.id;
 		tview2.texture_.type = t.type;
@@ -267,21 +277,29 @@ int main(){
 		for(uint32 j = 0;j<boxCount;++j){
 			debugRenderer->box(mat44f::identity(),boxes[j].min,boxes[j].max,vec4f(0.5,0.0,0.5,1.0));
 		}
-		debugRenderer->render (pv);
+		//debugRenderer->render (pv);
 
 		rendering::texture::Descriptor2D desc;
-		auto ts = depthBuffer.getTexels(desc);
-		tview.texture_  = renderer->create(desc,ts);
+		//auto ts = depthBuffer.getTexels(desc);
+		//tview.texture_  = renderer->create(desc,ts);
 		tview.pipeline_ = services::data()->pipeline(services::data()->bundle("core",true),"rendering.visualize.depthBuffer.pipeline",true)->pipeline();
 
-		char fps[128];
-		sprintf(fps,"Dt = %f,%f,%d,%s,%d",services::timing()->dt(),profRasterizeTiles.currentTime(),cov,vis?"true":"false",services::sceneRendering()->renderedEntityCount());
+		char fps[512];
+
+		if(totalC < 100){
+			totalFps += services::timing()->dt();
+			totalC++;
+		}else if(totalC == 100){
+			//totalFps = totalFps*0.001f;
+		}
+		sprintf(fps,"Dt = %f,%f,%f,%f,%d,%s,%d\nMax Lights per tile: %d\nLight index list size: %d\nLight count: %d",totalFps*10.0,1.0f/totalFps * 100.0,services::timing()->dt(),profRasterizeTiles.currentTime(),cov,vis?"true":"false",services::sceneRendering()->renderedEntityCount(),
+			services::sceneRendering()->lighting_->tileGrid(0)->maxLightsPerTile(),services::sceneRendering()->lighting_->tileGrid(0)->indexBuffer().length(),services::sceneRendering()->lighting_->lightCount);
 		text.string_ = core::Bytes((void*)fps,strlen(fps));
 		
 		services::ui()->drawWidgets();
 		services::ui()->render();
 
-		renderer->release(tview.texture_);
+		//renderer->release(tview.texture_);
 		services::rendering()->context()->swapBuffers();
 		services::postStep();
 	}
